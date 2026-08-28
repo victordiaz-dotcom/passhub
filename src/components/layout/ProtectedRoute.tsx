@@ -10,11 +10,16 @@ export function ProtectedRoute({
   children: React.ReactNode;
   allowedRoles?: Array<"admin" | "recepcion">;
 }) {
-  const { session, roles, loading } = useAuth();
+  const { session, profile, roles, loading, signOut } = useAuth();
 
   if (loading) return null; // TODO: spinner
 
   if (!session) return <Navigate to="/login" replace />;
+
+  if (profile && !profile.active) {
+    signOut();
+    return <Navigate to="/login" replace />;
+  }
 
   if (allowedRoles && !allowedRoles.some((r) => roles.includes(r))) {
     return <Navigate to="/" replace />;

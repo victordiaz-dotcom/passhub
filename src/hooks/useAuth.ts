@@ -6,10 +6,6 @@ import type { Tables } from "@/integrations/supabase/types";
 type Profile = Tables<"profiles">;
 type Role = Tables<"user_roles">["role"];
 
-// TODO (siguiente paso en VS Code / Claude Code):
-// - cargar profile + roles del usuario autenticado desde Supabase
-// - exponer companyId activo, isAdmin / isRecepcion
-// Sigue el mismo patrón que useAuth() en AssetFlow: un hook por dominio de datos.
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -50,12 +46,16 @@ export function useAuth() {
       .then(({ data }) => setRoles((data ?? []).map((r) => r.role)));
   }, [session?.user?.id]);
 
+  const signOut = () => supabase.auth.signOut();
+
   return {
     session,
     profile,
     roles,
+    companyId: profile?.company_id ?? null,
     isAdmin: roles.includes("admin"),
     isRecepcion: roles.includes("recepcion"),
     loading,
+    signOut,
   };
 }
