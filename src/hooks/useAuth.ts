@@ -53,8 +53,11 @@ export function useAuth() {
     profile,
     roles,
     companyId: profile?.company_id ?? null,
+    mustChangePassword: profile?.must_change_password ?? false,
     isAdmin: roles.includes("admin"),
     isRecepcion: roles.includes("recepcion"),
+    isSuperadmin: roles.includes("superadmin"),
+    isGuardia: roles.includes("guardia"),
     loading,
     signOut,
   };

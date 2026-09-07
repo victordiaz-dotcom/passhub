@@ -1,16 +1,29 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { AutoCompleteInput } from "@/components/AutoCompleteInput";
+import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 
 type Company = { id: string; name: string };
-type Employee = { id: string; full_name: string };
+type Division = { id: string; company_id: string; name: string };
+type VisitType = { id: string; name: string };
+
+const OTROS_SENTINEL = "__otros__";
 
 const emptyForm = {
   visitorName: "",
   visitorCompany: "",
+  visitorPhone: "",
+  visitorEmail: "",
   companyId: "",
-  hostEmployeeId: "",
+  visitType: "",
+  customVisitType: "",
+  hasVehicle: "",
+  vehiclePlate: "",
+  vehicleColor: "",
+  vehicleModel: "",
   reason: "",
+  division: "",
   visitDate: "",
   visitTime: "",
 };
@@ -22,10 +35,18 @@ function todayIso() {
 export default function PreRegistro() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
+  const [visitorCompanySuggestions, setVisitorCompanySuggestions] = useState<string[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // El campo "División" solo aparece si la empresa elegida tiene divisiones
+  // registradas en la base de datos — nada hardcodeado a un nombre de
+  // empresa en particular.
+  const companyDivisions = divisions.filter((division) => division.company_id === form.companyId);
+  const hasDivisions = companyDivisions.length > 0;
 
   useEffect(() => {
     supabase.functions
@@ -34,29 +55,46 @@ export default function PreRegistro() {
   }, []);
 
   useEffect(() => {
-    if (!form.companyId) {
-      setEmployees([]);
-      return;
-    }
-
     supabase.functions
-      .invoke("public-preregister", { body: { action: "employees", companyId: form.companyId } })
-      .then(({ data }) => setEmployees(data?.employees ?? []));
-  }, [form.companyId]);
+      .invoke("public-preregister", { body: { action: "divisions" } })
+      .then(({ data }) => setDivisions(data?.divisions ?? []));
+  }, []);
+
+  useEffect(() => {
+    supabase.functions
+      .invoke("public-preregister", { body: { action: "visitTypes" } })
+      .then(({ data }) => setVisitTypes(data?.visitTypes ?? []));
+  }, []);
+
+  useEffect(() => {
+    supabase.functions
+      .invoke("public-preregister", { body: { action: "visitorCompanies" } })
+      .then(({ data }) =>
+        setVisitorCompanySuggestions(mergeVisitorCompanySuggestions(data?.visitorCompanies ?? []))
+      );
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    if (!form.companyId || !form.hostEmployeeId) {
-      setError("Selecciona la empresa y a quién visitas.");
+    if (!form.companyId) {
+      setError("Selecciona la empresa que visitas.");
+      return;
+    }
+
+    const resolvedVisitType =
+      form.visitType === OTROS_SENTINEL ? form.customVisitType.trim() : form.visitType;
+
+    if (!resolvedVisitType) {
+      setError("Escribe el tipo de visita.");
       return;
     }
 
     setSubmitting(true);
 
     const { data, error: invokeError } = await supabase.functions.invoke("public-preregister", {
-      body: { action: "create", ...form },
+      body: { action: "create", ...form, visitType: resolvedVisitType },
     });
 
     setSubmitting(false);
@@ -72,7 +110,9 @@ export default function PreRegistro() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper p-6">
       <div className="w-full max-w-md rounded-lg border border-line bg-card p-8 shadow-sm">
-        <h1 className="mb-1 font-display text-xl font-bold text-ink">Pre-registro de visita</h1>
+        <img src="/logo.png" alt="PassHub" className="mb-3 h-14 w-auto" />
+        <h1 className="font-display text-xl font-bold text-ink">PassHub</h1>
+        <p className="mb-1 text-sm font-medium text-ink-soft">Pre-registro de visita</p>
         <p className="mb-6 text-sm text-ink-soft">
           Llena tus datos antes de llegar. Recibirás un código QR que deberás mostrar en recepción.
         </p>
@@ -96,11 +136,40 @@ export default function PreRegistro() {
             <label htmlFor="visitorCompany" className="mb-1 block text-sm font-medium text-ink-soft">
               Tu empresa
             </label>
-            <input
+            <AutoCompleteInput
               id="visitorCompany"
-              type="text"
+              required
+              suggestions={visitorCompanySuggestions}
               value={form.visitorCompany}
-              onChange={(e) => setForm({ ...form, visitorCompany: e.target.value })}
+              onChange={(visitorCompany) => setForm({ ...form, visitorCompany })}
+              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
+              Teléfono
+            </label>
+            <input
+              id="visitorPhone"
+              type="tel"
+              required
+              value={form.visitorPhone}
+              onChange={(e) => setForm({ ...form, visitorPhone: e.target.value })}
+              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="visitorEmail" className="mb-1 block text-sm font-medium text-ink-soft">
+              Correo electrónico
+            </label>
+            <input
+              id="visitorEmail"
+              type="email"
+              required
+              value={form.visitorEmail}
+              onChange={(e) => setForm({ ...form, visitorEmail: e.target.value })}
               className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
@@ -113,7 +182,7 @@ export default function PreRegistro() {
               id="company"
               required
               value={form.companyId}
-              onChange={(e) => setForm({ ...form, companyId: e.target.value, hostEmployeeId: "" })}
+              onChange={(e) => setForm({ ...form, companyId: e.target.value, division: "" })}
               className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             >
               <option value="" disabled>
@@ -128,27 +197,138 @@ export default function PreRegistro() {
           </div>
 
           <div>
-            <label htmlFor="hostEmployee" className="mb-1 block text-sm font-medium text-ink-soft">
-              A quién visitas
+            <label htmlFor="visitType" className="mb-1 block text-sm font-medium text-ink-soft">
+              Tipo de visita
             </label>
             <select
-              id="hostEmployee"
+              id="visitType"
               required
-              disabled={!form.companyId}
-              value={form.hostEmployeeId}
-              onChange={(e) => setForm({ ...form, hostEmployeeId: e.target.value })}
-              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:bg-paper"
+              value={form.visitType}
+              onChange={(e) => setForm({ ...form, visitType: e.target.value, customVisitType: "" })}
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             >
               <option value="" disabled>
-                Selecciona un colaborador
+                Selecciona una opción
               </option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.full_name}
+              {visitTypes.map((option) => (
+                <option key={option.id} value={option.name}>
+                  {option.name}
                 </option>
               ))}
+              <option value={OTROS_SENTINEL}>Otros</option>
             </select>
           </div>
+
+          {form.visitType === OTROS_SENTINEL && (
+            <div>
+              <label htmlFor="customVisitType" className="mb-1 block text-sm font-medium text-ink-soft">
+                Especifica el tipo de visita
+              </label>
+              <input
+                id="customVisitType"
+                type="text"
+                required
+                value={form.customVisitType}
+                onChange={(e) => setForm({ ...form, customVisitType: e.target.value })}
+                className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              />
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="hasVehicle" className="mb-1 block text-sm font-medium text-ink-soft">
+              ¿Traes vehículo?
+            </label>
+            <select
+              id="hasVehicle"
+              required
+              value={form.hasVehicle}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  hasVehicle: e.target.value,
+                  ...(e.target.value === "no"
+                    ? { vehiclePlate: "", vehicleColor: "", vehicleModel: "" }
+                    : {}),
+                })
+              }
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+            >
+              <option value="" disabled>
+                Selecciona una opción
+              </option>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+
+          {form.hasVehicle === "si" && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label htmlFor="vehiclePlate" className="mb-1 block text-sm font-medium text-ink-soft">
+                  Placas
+                </label>
+                <input
+                  id="vehiclePlate"
+                  type="text"
+                  required
+                  value={form.vehiclePlate}
+                  onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+                  className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="vehicleColor" className="mb-1 block text-sm font-medium text-ink-soft">
+                  Color
+                </label>
+                <input
+                  id="vehicleColor"
+                  type="text"
+                  required
+                  value={form.vehicleColor}
+                  onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
+                  className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="vehicleModel" className="mb-1 block text-sm font-medium text-ink-soft">
+                  Modelo
+                </label>
+                <input
+                  id="vehicleModel"
+                  type="text"
+                  required
+                  value={form.vehicleModel}
+                  onChange={(e) => setForm({ ...form, vehicleModel: e.target.value })}
+                  className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {hasDivisions && (
+            <div>
+              <label htmlFor="division" className="mb-1 block text-sm font-medium text-ink-soft">
+                División
+              </label>
+              <select
+                id="division"
+                required
+                value={form.division}
+                onChange={(e) => setForm({ ...form, division: e.target.value })}
+                className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              >
+                <option value="" disabled>
+                  Selecciona una división
+                </option>
+                {companyDivisions.map((option) => (
+                  <option key={option.id} value={option.name}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label htmlFor="reason" className="mb-1 block text-sm font-medium text-ink-soft">
@@ -157,6 +337,7 @@ export default function PreRegistro() {
             <input
               id="reason"
               type="text"
+              required
               value={form.reason}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
               className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
@@ -181,11 +362,12 @@ export default function PreRegistro() {
 
             <div>
               <label htmlFor="visitTime" className="mb-1 block text-sm font-medium text-ink-soft">
-                Hora (opcional)
+                Hora
               </label>
               <input
                 id="visitTime"
                 type="time"
+                required
                 value={form.visitTime}
                 onChange={(e) => setForm({ ...form, visitTime: e.target.value })}
                 className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"

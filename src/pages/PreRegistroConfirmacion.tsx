@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { QRCodeCanvas } from "qrcode.react";
+import QRCodeStyling from "qr-code-styling";
 import { supabase } from "@/integrations/supabase/client";
 
 type Preregistration = {
   id: string;
   visitor_name: string;
   visitor_company: string | null;
+  visitor_phone: string | null;
+  visitor_email: string | null;
+  visit_type: string | null;
+  has_vehicle: boolean | null;
+  vehicle_plate: string | null;
+  vehicle_color: string | null;
+  vehicle_model: string | null;
   reason: string | null;
   visit_date: string;
   visit_time: string | null;
   status: "pendiente" | "usada" | "vencida" | "cancelada";
   used_at: string | null;
+  extended_until: string | null;
   created_at: string;
   employees: { full_name: string } | null;
   companies: { name: string } | null;
@@ -22,13 +30,24 @@ function formatDate(value: string) {
   return `${day}/${month}/${year}`;
 }
 
+function addDays(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day + days);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function PreRegistroConfirmacion() {
   const { id } = useParams<{ id: string }>();
   const [details, setDetails] = useState<Preregistration | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [zoomedSrc, setZoomedSrc] = useState<string | null>(null);
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
+  const qrCodeRef = useRef<QRCodeStyling | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -68,14 +87,58 @@ export default function PreRegistroConfirmacion() {
       });
   }, [id]);
 
-  function downloadQr() {
-    const canvas = qrContainerRef.current?.querySelector("canvas");
-    if (!canvas || !id) return;
+  useEffect(() => {
+    // Este efecto depende de "loading"/"details" además de "id": la primera
+    // vez que corre (con loading=true) el contenedor del QR todavía no
+    // existe en el DOM (se muestra "Cargando..."), así que hay que
+    // reintentar cuando ya se montó el contenedor real.
+    if (!id || loading || error || !details || !qrContainerRef.current) return;
 
-    const link = document.createElement("a");
-    link.href = canvas.toDataURL("image/png");
-    link.download = `pre-registro-${id}.png`;
-    link.click();
+    // El canvas se genera a una resolución más alta que su tamaño visual
+    // (según el devicePixelRatio de la pantalla) y luego se reduce por CSS:
+    // así se ve nítido en pantallas retina en vez de borroso.
+    const displaySize = 220;
+    const dpr = window.devicePixelRatio || 1;
+    const renderSize = Math.round(displaySize * dpr);
+
+    if (!qrCodeRef.current) {
+      qrCodeRef.current = new QRCodeStyling({
+        width: renderSize,
+        height: renderSize,
+        type: "canvas",
+        data: id,
+        margin: Math.round(6 * dpr),
+        qrOptions: { errorCorrectionLevel: "H" },
+        image: "/logo.png",
+        imageOptions: { crossOrigin: "anonymous", margin: Math.round(8 * dpr), imageSize: 0.42 },
+        // "dots" en vez de "rounded": los módulos quedan como puntos
+        // separados en lugar de fundirse en caminos/líneas continuas, que
+        // es justo lo que se veía muy lleno.
+        dotsOptions: { type: "dots", color: "#000000" },
+        cornersSquareOptions: { type: "dot", color: "#000000" },
+        cornersDotOptions: { type: "dot", color: "#000000" },
+        backgroundOptions: { color: "#ffffff" },
+      });
+      qrCodeRef.current.append(qrContainerRef.current);
+    } else {
+      qrCodeRef.current.update({ data: id });
+    }
+
+    const canvas = qrContainerRef.current.querySelector("canvas");
+    if (canvas) {
+      canvas.style.width = `${displaySize}px`;
+      canvas.style.height = `${displaySize}px`;
+    }
+  }, [id, loading, error, details]);
+
+  function downloadQr() {
+    if (!id) return;
+    qrCodeRef.current?.download({ name: `pre-registro-${id}`, extension: "png" });
+  }
+
+  function openZoom() {
+    const canvas = qrContainerRef.current?.querySelector("canvas");
+    if (canvas) setZoomedSrc(canvas.toDataURL("image/png"));
   }
 
   if (loading) {
@@ -90,7 +153,7 @@ export default function PreRegistroConfirmacion() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper p-6">
         <div className="w-full max-w-sm rounded-lg border border-line bg-card p-8 text-center shadow-sm">
-          <h1 className="mb-2 font-display text-xl font-bold text-ink">Pre-registro no encontrado</h1>
+          <h1 className="mb-2 font-display text-xl font-bold text-ink">Pre-registro no disponible</h1>
           <p className="text-sm text-danger">{error ?? "Revisa que el link esté completo."}</p>
         </div>
       </div>
@@ -100,27 +163,45 @@ export default function PreRegistroConfirmacion() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper p-6">
       <div className="w-full max-w-sm rounded-lg border border-line bg-card p-8 shadow-sm">
-        <h1 className="mb-1 text-center font-display text-xl font-bold text-ink">Tu pre-registro</h1>
+        <h1 className="mb-1 text-center font-display text-xl font-bold text-ink">¡Todo listo para tu visita!</h1>
+        <p className="mb-1 text-center text-sm font-medium text-accent-dark">
+          Nos da mucho gusto recibirte, {details.visitor_name}
+        </p>
         <p className="mb-6 text-center text-sm text-ink-soft">
-          Muestra este código QR en recepción el día de tu visita.
+          Presenta este código QR en recepción para darte la bienvenida.
         </p>
 
-        {details.status === "usada" && (
-          <div className="mb-6 rounded-md border border-line bg-paper p-3 text-center text-sm text-ink-soft">
-            Este pase ya fue utilizado
-            {details.used_at ? ` el ${new Date(details.used_at).toLocaleString()}` : ""}.
-          </div>
-        )}
+        {(() => {
+          // Un pre-registro cancelado o vencido nunca llega aquí: el
+          // endpoint público lo bloquea desde el servidor antes de devolver
+          // ningún dato, así que si "details" existe es porque sigue
+          // vigente.
+          const expiresOn = details.extended_until ?? addDays(details.visit_date, 7);
 
-        {(details.status === "vencida" || details.status === "cancelada") && (
-          <div className="mb-6 rounded-md border border-danger bg-danger/10 p-3 text-center text-sm text-danger">
-            Este pre-registro ya no es válido ({details.status}).
-          </div>
-        )}
+          if (details.status === "usada") {
+            return (
+              <div className="mb-6 rounded-md border border-line bg-paper p-3 text-center text-sm text-ink-soft">
+                Ya se usó este pase{details.used_at ? ` el ${new Date(details.used_at).toLocaleString()}` : ""}.
+                Sigue vigente para volver a ingresar hasta el {formatDate(expiresOn)}.
+              </div>
+            );
+          }
 
-        <div ref={qrContainerRef} className="flex justify-center">
-          <QRCodeCanvas value={id ?? ""} size={220} />
-        </div>
+          return (
+            <div className="mb-6 rounded-md border border-line bg-paper p-3 text-center text-sm text-ink-soft">
+              Vigente para ingresar hasta el {formatDate(expiresOn)}.
+            </div>
+          );
+        })()}
+
+        <button
+          type="button"
+          onClick={openZoom}
+          className="mx-auto block w-fit cursor-pointer rounded-xl border border-line bg-white p-4 transition-transform active:scale-95"
+        >
+          <div ref={qrContainerRef} className="flex justify-center" />
+        </button>
+        <p className="mt-2 text-center text-xs text-ink-soft">Toca el código para ampliarlo</p>
 
         <button
           type="button"
@@ -141,14 +222,34 @@ export default function PreRegistroConfirmacion() {
               <dd className="font-medium text-ink">{details.visitor_company}</dd>
             </div>
           )}
+          {details.visitor_phone && (
+            <div className="flex justify-between py-2">
+              <dt className="text-ink-soft">Teléfono</dt>
+              <dd className="font-medium text-ink">{details.visitor_phone}</dd>
+            </div>
+          )}
+          {details.visitor_email && (
+            <div className="flex justify-between py-2">
+              <dt className="text-ink-soft">Correo</dt>
+              <dd className="font-medium text-ink">{details.visitor_email}</dd>
+            </div>
+          )}
           <div className="flex justify-between py-2">
             <dt className="text-ink-soft">Visita a</dt>
             <dd className="font-medium text-ink">{details.companies?.name ?? "—"}</dd>
           </div>
-          <div className="flex justify-between py-2">
-            <dt className="text-ink-soft">Recibe</dt>
-            <dd className="font-medium text-ink">{details.employees?.full_name ?? "—"}</dd>
-          </div>
+          {details.employees?.full_name && (
+            <div className="flex justify-between py-2">
+              <dt className="text-ink-soft">Recibe</dt>
+              <dd className="font-medium text-ink">{details.employees.full_name}</dd>
+            </div>
+          )}
+          {details.visit_type && (
+            <div className="flex justify-between py-2">
+              <dt className="text-ink-soft">Tipo de visita</dt>
+              <dd className="font-medium text-ink">{details.visit_type}</dd>
+            </div>
+          )}
           <div className="flex justify-between py-2">
             <dt className="text-ink-soft">Fecha</dt>
             <dd className="font-medium text-ink">{formatDate(details.visit_date)}</dd>
@@ -159,12 +260,45 @@ export default function PreRegistroConfirmacion() {
               <dd className="font-medium text-ink">{details.visit_time}</dd>
             </div>
           )}
+          {details.has_vehicle && (
+            <>
+              <div className="flex justify-between py-2">
+                <dt className="text-ink-soft">Vehículo</dt>
+                <dd className="font-medium text-ink">
+                  {details.vehicle_color} {details.vehicle_model}
+                </dd>
+              </div>
+              <div className="flex justify-between py-2">
+                <dt className="text-ink-soft">Placas</dt>
+                <dd className="font-medium text-ink">{details.vehicle_plate}</dd>
+              </div>
+            </>
+          )}
         </dl>
 
         <p className="mt-6 text-center text-xs text-ink-soft">
           Guarda este link o toma una captura de pantalla: es la única forma de volver a ver tu pase.
         </p>
+
+        <p className="mt-4 border-t border-line pt-4 text-center text-xs text-ink-soft">
+          Av. I. Morones Prieto No. 2110, Local 3-B, Col. Loma Larga, C.P. 64710, Monterrey, N.L.
+          <br />
+          Teléfono: +52 81 2085 8093
+        </p>
       </div>
+
+      {zoomedSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          onClick={() => setZoomedSrc(null)}
+        >
+          <img
+            src={zoomedSrc}
+            alt="Código QR ampliado"
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -2,11 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { SearchableSelect } from "@/components/SearchableSelect";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AutoCompleteInput } from "@/components/AutoCompleteInput";
+import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Pick<Tables<"employees">, "id" | "full_name">;
-type InsideVisit = Pick<Tables<"visits">, "id" | "folio" | "visitor_name" | "check_in_at"> & {
+type Company = Pick<Tables<"companies">, "id" | "name">;
+type Division = Pick<Tables<"divisions">, "id" | "name">;
+type VisitType = Pick<Tables<"visit_types">, "id" | "name">;
+
+const OTROS_SENTINEL = "__otros__";
+type InsideVisit = Pick<
+  Tables<"visits">,
+  "id" | "folio" | "visitor_name" | "check_in_at"
+> & {
   employees: Pick<Tables<"employees">, "full_name"> | null;
+  companies: Pick<Tables<"companies">, "name"> | null;
 };
 
 const QR_REGION_ID = "qr-reader-region";
@@ -24,24 +37,53 @@ function todayLocal() {
   return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
 
+function nowTimeLocal() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
 function formatDate(value: string) {
   const [year, month, day] = value.split("-");
   return `${day}/${month}/${year}`;
 }
 
+function addDays(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day + days);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function CheckIn() {
-  const { session, profile, companyId, signOut } = useAuth();
+  const { session, companyId } = useAuth();
 
   const [tab, setTab] = useState<"registrar" | "dentro">("registrar");
   const [insideVisits, setInsideVisits] = useState<InsideVisit[]>([]);
   const [insideLoading, setInsideLoading] = useState(true);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutTarget, setCheckoutTarget] = useState<InsideVisit | null>(null);
 
-  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
+  const [visitorCompanySuggestions, setVisitorCompanySuggestions] = useState<string[]>([]);
   const [visitorName, setVisitorName] = useState("");
   const [visitorCompany, setVisitorCompany] = useState("");
+  const [visitorPhone, setVisitorPhone] = useState("");
+  const [visitorEmail, setVisitorEmail] = useState("");
   const [hostEmployeeId, setHostEmployeeId] = useState("");
+  const [visitType, setVisitType] = useState("");
+  const [customVisitType, setCustomVisitType] = useState("");
+  const [hasVehicle, setHasVehicle] = useState(false);
+  const [vehiclePlate, setVehiclePlate] = useState("");
+  const [vehicleColor, setVehicleColor] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
   const [reason, setReason] = useState("");
+  const [division, setDivision] = useState("");
   const [visitDate, setVisitDate] = useState(todayLocal());
   const [visitTime, setVisitTime] = useState("");
   const [visitorPhoto, setVisitorPhoto] = useState<File | null>(null);
@@ -50,6 +92,8 @@ export default function CheckIn() {
 
   const [preregistrationId, setPreregistrationId] = useState<string | null>(null);
   const [preregistrationDate, setPreregistrationDate] = useState<string | null>(null);
+  const [preregistrationExpiresOn, setPreregistrationExpiresOn] = useState<string | null>(null);
+  const [preregistrationReused, setPreregistrationReused] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
@@ -61,23 +105,80 @@ export default function CheckIn() {
   const idPhotoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!companyId) return;
-
+    // Cualquier cuenta (admin o recepción) puede elegir cualquier empresa:
+    // un solo mostrador de recepción atiende a las 4 empresas.
     supabase
       .from("companies")
-      .select("name")
-      .eq("id", companyId)
-      .single()
-      .then(({ data }) => setCompanyName(data?.name ?? null));
+      .select("id, name")
+      .order("name")
+      .then(({ data }) => setCompanies(data ?? []));
+  }, []);
 
+  useEffect(() => {
+    if (companyId) setSelectedCompanyId(companyId);
+  }, [companyId]);
+
+  useEffect(() => {
+    // El campo "División" solo aparece si la empresa elegida tiene
+    // divisiones registradas en la base de datos — nada hardcodeado a un
+    // nombre de empresa en particular.
+    if (!selectedCompanyId) {
+      setDivisions([]);
+      return;
+    }
+    supabase
+      .from("divisions")
+      .select("id, name")
+      .eq("company_id", selectedCompanyId)
+      .order("name")
+      .then(({ data }) => setDivisions(data ?? []));
+  }, [selectedCompanyId]);
+
+  useEffect(() => {
+    // Sin filtrar por empresa a propósito: quien recibe puede ser cualquier
+    // colaborador dado de alta, sin importar a qué empresa esté asignada la
+    // visita (varias empresas comparten una sola recepción física).
     supabase
       .from("employees")
       .select("id, full_name")
-      .eq("company_id", companyId)
       .eq("active", true)
       .order("full_name")
       .then(({ data }) => setEmployees(data ?? []));
-  }, [companyId]);
+  }, []);
+
+  useEffect(() => {
+    // "Empresa del visitante" aprende de lo que más se repite en visitas
+    // reales ya registradas, y se completa con una lista de sugerencias
+    // comunes (paqueterías, proveedores frecuentes) mientras se acumula
+    // historial propio.
+    supabase
+      .from("visits")
+      .select("visitor_company")
+      .not("visitor_company", "is", null)
+      .then(({ data }) => {
+        const counts = new Map<string, { label: string; count: number }>();
+        for (const row of data ?? []) {
+          const name = row.visitor_company?.trim();
+          if (!name) continue;
+          const key = name.toLowerCase();
+          const existing = counts.get(key);
+          if (existing) existing.count += 1;
+          else counts.set(key, { label: name, count: 1 });
+        }
+        const frequent = Array.from(counts.values())
+          .sort((a, b) => b.count - a.count)
+          .map((entry) => entry.label);
+        setVisitorCompanySuggestions(mergeVisitorCompanySuggestions(frequent));
+      });
+  }, []);
+
+  useEffect(() => {
+    supabase
+      .from("visit_types")
+      .select("id, name")
+      .order("name")
+      .then(({ data }) => setVisitTypes(data ?? []));
+  }, []);
 
   useEffect(() => {
     if (!visitorPhoto) {
@@ -90,13 +191,12 @@ export default function CheckIn() {
   }, [visitorPhoto]);
 
   async function loadInsideVisits() {
-    if (!companyId) return;
-
     setInsideLoading(true);
     const { data } = await supabase
       .from("visits")
-      .select("id, folio, visitor_name, check_in_at, employees(full_name)")
-      .eq("company_id", companyId)
+      .select(
+        "id, folio, visitor_name, check_in_at, employees(full_name), companies(name)"
+      )
       .eq("visit_date", todayLocal())
       .eq("status", "dentro")
       .order("check_in_at", { ascending: false });
@@ -106,14 +206,28 @@ export default function CheckIn() {
 
   useEffect(() => {
     loadInsideVisits();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId]);
+  }, []);
 
   async function handleCheckout(visitId: string) {
-    await supabase
+    if (!session?.user) return;
+
+    setCheckoutError(null);
+
+    const { error: checkoutErr } = await supabase
       .from("visits")
-      .update({ check_out_at: new Date().toISOString(), status: "fuera" })
+      .update({
+        check_out_at: new Date().toISOString(),
+        status: "fuera",
+        checked_out_by: session.user.id,
+      })
       .eq("id", visitId);
+
+    if (checkoutErr) {
+      console.error(checkoutErr);
+      setCheckoutError("No se pudo registrar la salida. Intenta de nuevo.");
+      return;
+    }
+
     loadInsideVisits();
   }
 
@@ -158,34 +272,76 @@ export default function CheckIn() {
       return;
     }
 
-    if (data.company_id !== companyId) {
-      setError("Este pre-registro pertenece a otra empresa.");
+    if (data.status === "cancelada" || data.status === "vencida") {
+      setError(`Este pre-registro está marcado como "${data.status}" y ya no es válido.`);
       return;
     }
 
+    // El QR sigue sirviendo para reingresos hasta 7 días después de la
+    // visita original: la misma persona puede volver dentro de esa semana
+    // sin volver a llenar el pre-registro, solo confirmando fecha de hoy.
+    const expiresOn = data.extended_until ?? addDays(data.visit_date, 7);
+    if (todayLocal() > expiresOn) {
+      setError(`Este pre-registro venció el ${formatDate(expiresOn)}. Pide uno nuevo para volver a ingresar.`);
+      return;
+    }
+
+    // La empresa anfitriona del formulario se ajusta a la del pre-registro
+    // escaneado, en vez de exigir que ya coincidiera con lo seleccionado.
+    setSelectedCompanyId(data.company_id);
     setVisitorName(data.visitor_name);
     setVisitorCompany(data.visitor_company ?? "");
+    setVisitorPhone((data as { visitor_phone?: string }).visitor_phone ?? "");
+    setVisitorEmail((data as { visitor_email?: string }).visitor_email ?? "");
     setHostEmployeeId(data.host_employee_id ?? "");
+    const scannedVisitType = (data as { visit_type?: string }).visit_type ?? "";
+    if (scannedVisitType && !visitTypes.some((option) => option.name === scannedVisitType)) {
+      setVisitType(OTROS_SENTINEL);
+      setCustomVisitType(scannedVisitType);
+    } else {
+      setVisitType(scannedVisitType);
+      setCustomVisitType("");
+    }
+    setHasVehicle((data as { has_vehicle?: boolean }).has_vehicle ?? false);
+    setVehiclePlate((data as { vehicle_plate?: string }).vehicle_plate ?? "");
+    setVehicleColor((data as { vehicle_color?: string }).vehicle_color ?? "");
+    setVehicleModel((data as { vehicle_model?: string }).vehicle_model ?? "");
     setReason(data.reason ?? "");
+    // Fecha y hora se autocompletan con el momento real del escaneo, no con
+    // lo que traía el pre-registro (que pudo haberse creado para otro día u
+    // otra hora) — así siempre queda la entrada real, aunque se reutilice.
+    setVisitDate(todayLocal());
+    setVisitTime(nowTimeLocal());
+    setDivision((data as { division?: string }).division ?? "");
     setPreregistrationId(data.id);
     setPreregistrationDate(data.visit_date);
-
-    if (data.status !== "pendiente") {
-      setError(`Aviso: este pre-registro ya está marcado como "${data.status}".`);
-    }
+    setPreregistrationExpiresOn(expiresOn);
+    setPreregistrationReused(data.status === "usada");
   }
 
   function resetForm() {
     setVisitorName("");
     setVisitorCompany("");
+    setVisitorPhone("");
+    setVisitorEmail("");
+    setSelectedCompanyId(companyId ?? "");
     setHostEmployeeId("");
+    setVisitType("");
+    setCustomVisitType("");
+    setHasVehicle(false);
+    setVehiclePlate("");
+    setVehicleColor("");
+    setVehicleModel("");
     setReason("");
+    setDivision("");
     setVisitDate(todayLocal());
     setVisitTime("");
     setVisitorPhoto(null);
     setIdPhoto(null);
     setPreregistrationId(null);
     setPreregistrationDate(null);
+    setPreregistrationExpiresOn(null);
+    setPreregistrationReused(false);
     if (visitorPhotoInput.current) visitorPhotoInput.current.value = "";
     if (idPhotoInput.current) idPhotoInput.current.value = "";
   }
@@ -199,8 +355,8 @@ export default function CheckIn() {
     e.preventDefault();
     setError(null);
 
-    if (!companyId || !session?.user) {
-      setError("Tu perfil no tiene una empresa asignada. Contacta a tu admin.");
+    if (!selectedCompanyId || !session?.user) {
+      setError("Selecciona la empresa anfitriona.");
       return;
     }
     if (!visitorPhoto || !idPhoto) {
@@ -208,11 +364,17 @@ export default function CheckIn() {
       return;
     }
 
+    const resolvedVisitType = visitType === OTROS_SENTINEL ? customVisitType.trim() : visitType;
+    if (!resolvedVisitType) {
+      setError("Escribe el tipo de visita.");
+      return;
+    }
+
     setSubmitting(true);
 
     const tempId = crypto.randomUUID();
-    const visitorPhotoPath = `${companyId}/${tempId}/visitante.jpg`;
-    const idPhotoPath = `${companyId}/${tempId}/ine.jpg`;
+    const visitorPhotoPath = `${selectedCompanyId}/${tempId}/visitante.jpg`;
+    const idPhotoPath = `${selectedCompanyId}/${tempId}/ine.jpg`;
 
     const { error: visitorUploadError } = await supabase.storage
       .from("visit-photos")
@@ -239,17 +401,25 @@ export default function CheckIn() {
     const { data, error: insertError } = await supabase
       .from("visits")
       .insert({
-        company_id: companyId,
+        company_id: selectedCompanyId,
         visitor_name: visitorName,
         visitor_company: visitorCompany || null,
+        visitor_phone: visitorPhone || null,
+        visitor_email: visitorEmail || null,
         host_employee_id: hostEmployeeId || null,
+        visit_type: resolvedVisitType,
+        has_vehicle: hasVehicle,
+        vehicle_plate: hasVehicle ? vehiclePlate || null : null,
+        vehicle_color: hasVehicle ? vehicleColor || null : null,
+        vehicle_model: hasVehicle ? vehicleModel || null : null,
         reason: reason || null,
+        division: hasDivisions ? division || null : null,
         visitor_photo_path: visitorPhotoPath,
         id_photo_path: idPhotoPath,
         created_by: session.user.id,
         preregistration_id: preregistrationId,
       })
-      .select("folio")
+      .select("id, folio")
       .single();
 
     setSubmitting(false);
@@ -261,56 +431,61 @@ export default function CheckIn() {
     }
 
     if (preregistrationId) {
+      // Al reutilizar el mismo QR en un reingreso, la fecha/hora del
+      // pre-registro se actualiza a las de este check-in real (no se queda
+      // pegado a cuando se generó originalmente) — y de paso "renueva" los
+      // 7 días de vigencia contados desde este último uso.
       await supabase
         .from("visit_preregistrations")
-        .update({ status: "usada", used_at: new Date().toISOString() })
+        .update({
+          status: "usada",
+          used_at: new Date().toISOString(),
+          visit_date: visitDate,
+          visit_time: visitTime || null,
+        })
         .eq("id", preregistrationId);
     }
+
+    // No bloquea el registro de la visita si Slack falla o tarda: es un
+    // aviso de mejor esfuerzo, no parte del flujo crítico de check-in.
+    supabase.functions.invoke("notify-slack", { body: { visitId: data.id } }).then(({ error: notifyError }) => {
+      if (notifyError) console.error("No se pudo notificar por Slack:", notifyError);
+    });
 
     setFolio(data.folio);
     loadInsideVisits();
   }
 
-  const initial = profile?.full_name?.trim().charAt(0).toUpperCase() ?? "?";
   const hostEmployeeName = employees.find((employee) => employee.id === hostEmployeeId)?.full_name;
+  const companyName = companies.find((company) => company.id === selectedCompanyId)?.name ?? null;
+  const hasDivisions = divisions.length > 0;
 
   return (
     <div className="min-h-screen bg-paper">
-      <header className="bg-ink text-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent font-display text-lg font-bold text-white">
-              {initial}
-            </div>
-            <div>
-              <h1 className="font-display text-lg font-bold leading-tight">Registro de visitas</h1>
-              <p className="text-sm text-white/50">Recepción · captura de acceso</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <button
-              type="button"
-              onClick={() => setTab(tab === "registrar" ? "dentro" : "registrar")}
-              className="text-sm text-white/70 hover:text-white"
-            >
-              Visitantes dentro{insideVisits.length > 0 ? ` (${insideVisits.length})` : ""}
-            </button>
-            <button type="button" onClick={() => signOut()} className="text-sm text-white/50 hover:text-white/80">
-              Cerrar sesión
-            </button>
-          </div>
-        </div>
-      </header>
-
       <div className="mx-auto max-w-6xl px-6 py-6">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="font-display text-xl font-bold text-ink">Registrar visita</h1>
+          <button
+            type="button"
+            onClick={() => setTab(tab === "registrar" ? "dentro" : "registrar")}
+            className="text-sm font-medium text-accent hover:text-accent-dark"
+          >
+            {tab === "registrar"
+              ? `Ver visitantes dentro${insideVisits.length > 0 ? ` (${insideVisits.length})` : ""}`
+              : "Volver a registrar"}
+          </button>
+        </div>
+
         {tab === "dentro" ? (
-          <div className="overflow-hidden rounded-lg border border-line bg-card shadow-sm">
+          <div>
+            {checkoutError && <p className="mb-3 text-sm text-danger">{checkoutError}</p>}
+            <div className="overflow-hidden rounded-lg border border-line bg-card shadow-sm">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-ink-soft">
                   <th className="px-4 py-3 font-medium">Folio</th>
                   <th className="px-4 py-3 font-medium">Visitante</th>
+                  <th className="px-4 py-3 font-medium">Empresa</th>
                   <th className="px-4 py-3 font-medium">A quién visita</th>
                   <th className="px-4 py-3 font-medium">Hora de entrada</th>
                   <th className="px-4 py-3 font-medium">Acciones</th>
@@ -319,7 +494,7 @@ export default function CheckIn() {
               <tbody>
                 {!insideLoading && insideVisits.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-ink-soft">
+                    <td colSpan={6} className="px-4 py-6 text-center text-ink-soft">
                       No hay visitantes dentro en este momento.
                     </td>
                   </tr>
@@ -328,6 +503,7 @@ export default function CheckIn() {
                   <tr key={visit.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-3 font-medium text-ink">{visit.folio}</td>
                     <td className="px-4 py-3 text-ink">{visit.visitor_name}</td>
+                    <td className="px-4 py-3 text-ink-soft">{visit.companies?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-ink-soft">{visit.employees?.full_name ?? "—"}</td>
                     <td className="px-4 py-3 text-ink-soft">
                       {new Date(visit.check_in_at).toLocaleTimeString([], {
@@ -338,7 +514,7 @@ export default function CheckIn() {
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        onClick={() => handleCheckout(visit.id)}
+                        onClick={() => setCheckoutTarget(visit)}
                         className="text-sm font-medium text-accent hover:text-accent-dark"
                       >
                         Registrar salida
@@ -348,6 +524,7 @@ export default function CheckIn() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
@@ -379,9 +556,14 @@ export default function CheckIn() {
               {preregistrationId && (
                 <div className="rounded-lg border border-accent bg-accent-tint p-3 text-sm text-accent-dark">
                   <p>
-                    Datos cargados desde un pre-registro
-                    {preregistrationDate ? ` para el ${preregistrationDate}` : ""}. Confirma los datos,
-                    toma las fotos y envía.
+                    {preregistrationReused
+                      ? "Este visitante ya ingresó antes con este mismo pre-registro"
+                      : "Datos cargados desde un pre-registro"}
+                    {preregistrationDate ? ` (originalmente para el ${formatDate(preregistrationDate)})` : ""}.
+                    Confirma los datos y la fecha de hoy, toma las fotos y envía.
+                    {preregistrationExpiresOn
+                      ? ` Vigente para reingresos hasta el ${formatDate(preregistrationExpiresOn)}.`
+                      : ""}
                   </p>
                   <button
                     type="button"
@@ -412,14 +594,21 @@ export default function CheckIn() {
                       id="hostCompany"
                       required
                       disabled={!!folio}
-                      value={companyId ?? ""}
-                      onChange={() => {}}
+                      value={selectedCompanyId}
+                      onChange={(e) => {
+                        setSelectedCompanyId(e.target.value);
+                        setDivision("");
+                      }}
                       className={plainSelectClass}
                     >
                       <option value="" disabled>
                         Seleccione una empresa
                       </option>
-                      {companyId && companyName && <option value={companyId}>{companyName}</option>}
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -427,22 +616,82 @@ export default function CheckIn() {
                     <label htmlFor="hostEmployee" className="mb-1 block text-sm font-medium text-ink-soft">
                       Colaborador que recibe <span className="text-accent">*</span>
                     </label>
-                    <select
+                    <SearchableSelect
                       id="hostEmployee"
                       required
                       disabled={!!folio}
+                      placeholder="Escribe para buscar..."
+                      options={employees.map((employee) => ({ id: employee.id, label: employee.full_name }))}
                       value={hostEmployeeId}
-                      onChange={(e) => setHostEmployeeId(e.target.value)}
+                      onChange={setHostEmployeeId}
+                      className={invalidSelectClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="visitType" className="mb-1 block text-sm font-medium text-ink-soft">
+                      Tipo de visita <span className="text-accent">*</span>
+                    </label>
+                    <select
+                      id="visitType"
+                      required
+                      disabled={!!folio}
+                      value={visitType}
+                      onChange={(e) => {
+                        setVisitType(e.target.value);
+                        setCustomVisitType("");
+                      }}
                       className={invalidSelectClass}
                     >
                       <option value="" disabled></option>
-                      {employees.map((employee) => (
-                        <option key={employee.id} value={employee.id}>
-                          {employee.full_name}
+                      {visitTypes.map((option) => (
+                        <option key={option.id} value={option.name}>
+                          {option.name}
                         </option>
                       ))}
+                      <option value={OTROS_SENTINEL}>Otros</option>
                     </select>
                   </div>
+
+                  {visitType === OTROS_SENTINEL && (
+                    <div>
+                      <label htmlFor="customVisitType" className="mb-1 block text-sm font-medium text-ink-soft">
+                        Especifica el tipo de visita <span className="text-accent">*</span>
+                      </label>
+                      <input
+                        id="customVisitType"
+                        type="text"
+                        required
+                        disabled={!!folio}
+                        value={customVisitType}
+                        onChange={(e) => setCustomVisitType(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                  )}
+
+                  {hasDivisions && (
+                    <div className="sm:col-span-2">
+                      <label htmlFor="division" className="mb-1 block text-sm font-medium text-ink-soft">
+                        División <span className="text-accent">*</span>
+                      </label>
+                      <select
+                        id="division"
+                        required
+                        disabled={!!folio}
+                        value={division}
+                        onChange={(e) => setDivision(e.target.value)}
+                        className={invalidSelectClass}
+                      >
+                        <option value="" disabled></option>
+                        {divisions.map((option) => (
+                          <option key={option.id} value={option.name}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div>
                     <label htmlFor="visitorName" className="mb-1 block text-sm font-medium text-ink-soft">
@@ -463,14 +712,44 @@ export default function CheckIn() {
                     <label htmlFor="visitorCompany" className="mb-1 block text-sm font-medium text-ink-soft">
                       Empresa del visitante <span className="text-accent">*</span>
                     </label>
-                    <input
+                    <AutoCompleteInput
                       id="visitorCompany"
-                      type="text"
                       required
                       disabled={!!folio}
                       placeholder="Ej. DHL, CFE, Amazon"
+                      suggestions={visitorCompanySuggestions}
                       value={visitorCompany}
-                      onChange={(e) => setVisitorCompany(e.target.value)}
+                      onChange={setVisitorCompany}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
+                      Teléfono <span className="text-accent">*</span>
+                    </label>
+                    <input
+                      id="visitorPhone"
+                      type="tel"
+                      required
+                      disabled={!!folio}
+                      value={visitorPhone}
+                      onChange={(e) => setVisitorPhone(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="visitorEmail" className="mb-1 block text-sm font-medium text-ink-soft">
+                      Correo electrónico <span className="text-accent">*</span>
+                    </label>
+                    <input
+                      id="visitorEmail"
+                      type="email"
+                      required
+                      disabled={!!folio}
+                      value={visitorEmail}
+                      onChange={(e) => setVisitorEmail(e.target.value)}
                       className={inputClass}
                     />
                   </div>
@@ -588,7 +867,7 @@ export default function CheckIn() {
                     <img
                       src={visitorPhotoPreview}
                       alt="Foto del visitante"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   ) : (
                     <span className="text-sm text-white/40">Sin foto</span>
@@ -609,6 +888,20 @@ export default function CheckIn() {
                     <dt className="text-white/50">Recibe</dt>
                     <dd className="text-white">{hostEmployeeName ?? "—"}</dd>
                   </div>
+                  <div className="flex items-center justify-between py-2">
+                    <dt className="text-white/50">Tipo de visita</dt>
+                    <dd className="text-white">
+                      {(visitType === OTROS_SENTINEL ? customVisitType : visitType) || "—"}
+                    </dd>
+                  </div>
+                  {hasVehicle && (
+                    <div className="flex items-center justify-between py-2">
+                      <dt className="text-white/50">Vehículo</dt>
+                      <dd className="text-white">
+                        {vehicleColor} {vehicleModel} · {vehiclePlate}
+                      </dd>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between py-2">
                     <dt className="text-white/50">Fecha</dt>
                     <dd className="text-white">{visitDate ? formatDate(visitDate) : "—"}</dd>
@@ -646,6 +939,17 @@ export default function CheckIn() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!checkoutTarget}
+        title="¿Registrar la salida de este visitante?"
+        message={checkoutTarget ? `Se registrará la salida de ${checkoutTarget.visitor_name}.` : undefined}
+        onConfirm={() => {
+          if (checkoutTarget) handleCheckout(checkoutTarget.id);
+          setCheckoutTarget(null);
+        }}
+        onCancel={() => setCheckoutTarget(null)}
+      />
     </div>
   );
 }

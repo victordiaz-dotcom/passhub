@@ -7,8 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -68,6 +70,35 @@ export type Database = {
         }
         Relationships: []
       }
+      divisions: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "divisions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           active: boolean
@@ -114,6 +145,8 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          must_change_password: boolean
+          username: string
         }
         Insert: {
           active?: boolean
@@ -122,6 +155,8 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          must_change_password?: boolean
+          username: string
         }
         Update: {
           active?: boolean
@@ -130,6 +165,8 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          must_change_password?: boolean
+          username?: string
         }
         Relationships: [
           {
@@ -172,43 +209,70 @@ export type Database = {
           company_id: string
           created_at: string
           created_by: string | null
+          division: string | null
+          extended_until: string | null
+          has_vehicle: boolean | null
           host_employee_id: string | null
           id: string
           reason: string | null
           status: Database["public"]["Enums"]["prereg_status"]
           used_at: string | null
+          vehicle_color: string | null
+          vehicle_model: string | null
+          vehicle_plate: string | null
           visit_date: string
           visit_time: string | null
+          visit_type: string | null
           visitor_company: string | null
+          visitor_email: string | null
           visitor_name: string
+          visitor_phone: string | null
         }
         Insert: {
           company_id: string
           created_at?: string
           created_by?: string | null
+          division?: string | null
+          extended_until?: string | null
+          has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string
           reason?: string | null
           status?: Database["public"]["Enums"]["prereg_status"]
           used_at?: string | null
+          vehicle_color?: string | null
+          vehicle_model?: string | null
+          vehicle_plate?: string | null
           visit_date: string
           visit_time?: string | null
+          visit_type?: string | null
           visitor_company?: string | null
+          visitor_email?: string | null
           visitor_name: string
+          visitor_phone?: string | null
         }
         Update: {
           company_id?: string
           created_at?: string
           created_by?: string | null
+          division?: string | null
+          extended_until?: string | null
+          has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string
           reason?: string | null
           status?: Database["public"]["Enums"]["prereg_status"]
           used_at?: string | null
+          vehicle_color?: string | null
+          vehicle_model?: string | null
+          vehicle_plate?: string | null
           visit_date?: string
           visit_time?: string | null
+          visit_type?: string | null
           visitor_company?: string | null
+          visitor_email?: string | null
           visitor_name?: string
+          visitor_phone?: string | null
         }
         Relationships: [
           {
@@ -234,62 +298,114 @@ export type Database = {
           },
         ]
       }
+      visit_types: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       visits: {
         Row: {
           check_in_at: string
           check_out_at: string | null
+          checked_out_by: string | null
           company_id: string
           created_at: string
           created_by: string
+          division: string | null
           folio: string | null
+          has_vehicle: boolean | null
           host_employee_id: string | null
           id: string
           id_photo_path: string
           preregistration_id: string | null
           reason: string | null
           status: Database["public"]["Enums"]["visit_status"]
+          vehicle_color: string | null
+          vehicle_model: string | null
+          vehicle_plate: string | null
           visit_date: string
+          visit_type: string | null
           visitor_company: string | null
+          visitor_email: string | null
           visitor_name: string
+          visitor_phone: string | null
           visitor_photo_path: string
         }
         Insert: {
           check_in_at?: string
           check_out_at?: string | null
+          checked_out_by?: string | null
           company_id: string
           created_at?: string
           created_by: string
+          division?: string | null
           folio?: string | null
+          has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string
           id_photo_path: string
           preregistration_id?: string | null
           reason?: string | null
           status?: Database["public"]["Enums"]["visit_status"]
+          vehicle_color?: string | null
+          vehicle_model?: string | null
+          vehicle_plate?: string | null
           visit_date?: string
+          visit_type?: string | null
           visitor_company?: string | null
+          visitor_email?: string | null
           visitor_name: string
+          visitor_phone?: string | null
           visitor_photo_path: string
         }
         Update: {
           check_in_at?: string
           check_out_at?: string | null
+          checked_out_by?: string | null
           company_id?: string
           created_at?: string
           created_by?: string
+          division?: string | null
           folio?: string | null
+          has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string
           id_photo_path?: string
           preregistration_id?: string | null
           reason?: string | null
           status?: Database["public"]["Enums"]["visit_status"]
+          vehicle_color?: string | null
+          vehicle_model?: string | null
+          vehicle_plate?: string | null
           visit_date?: string
+          visit_type?: string | null
           visitor_company?: string | null
+          visitor_email?: string | null
           visitor_name?: string
+          visitor_phone?: string | null
           visitor_photo_path?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "visits_checked_out_by_fkey"
+            columns: ["checked_out_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "visits_company_id_fkey"
             columns: ["company_id"]
@@ -325,6 +441,49 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      analytics_prereg_status_breakdown: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          status: Database["public"]["Enums"]["prereg_status"]
+          status_count: number
+        }[]
+      }
+      analytics_top_hosts: {
+        Args: { p_end: string; p_limit?: number; p_start: string }
+        Returns: {
+          employee_id: string
+          full_name: string
+          visits_count: number
+        }[]
+      }
+      analytics_top_visitor_companies: {
+        Args: { p_end: string; p_limit?: number; p_start: string }
+        Returns: {
+          visitor_company: string
+          visits_count: number
+        }[]
+      }
+      analytics_visits_by_hour: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          hour_of_day: number
+          visits_count: number
+        }[]
+      }
+      analytics_visits_by_month: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          month_start: string
+          visits_count: number
+        }[]
+      }
+      analytics_visits_by_weekday: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          visits_count: number
+          weekday: number
+        }[]
+      }
       current_company_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -344,7 +503,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "recepcion"
+      app_role: "admin" | "recepcion" | "superadmin" | "guardia"
       prereg_status: "pendiente" | "usada" | "vencida" | "cancelada"
       visit_status: "dentro" | "fuera"
     }
@@ -354,18 +513,129 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database["public"]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-  T extends keyof DefaultSchema["Tables"]
-> = DefaultSchema["Tables"][T]["Row"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
-  T extends keyof DefaultSchema["Tables"]
-> = DefaultSchema["Tables"][T]["Insert"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
-  T extends keyof DefaultSchema["Tables"]
-> = DefaultSchema["Tables"][T]["Update"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
-export type Enums<T extends keyof DefaultSchema["Enums"]> = DefaultSchema["Enums"][T]
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["admin", "recepcion", "superadmin", "guardia"],
+      prereg_status: ["pendiente", "usada", "vencida", "cancelada"],
+      visit_status: ["dentro", "fuera"],
+    },
+  },
+} as const

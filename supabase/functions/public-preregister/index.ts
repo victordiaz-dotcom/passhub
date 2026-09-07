@@ -18,6 +18,12 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function addDaysIso(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -43,25 +49,51 @@ Deno.serve(async (req) => {
   const action = body.action;
 
   // Lookups de solo lectura para poblar el formulario público (nombres de
-  // empresa/colaborador no son datos sensibles, pero las tablas no tienen
-  // RLS para "anon", así que se resuelven aquí con la service role key).
+  // empresa no son datos sensibles, pero las tablas no tienen RLS para
+  // "anon", así que se resuelven aquí con la service role key). No hay un
+  // lookup equivalente de colaboradores: expondría a todo el personal sin
+  // autenticación, así que "a quién visitas" se define en recepción.
   if (action === "companies") {
     const { data } = await adminClient.from("companies").select("id, name").order("name");
     return jsonResponse({ companies: data ?? [] });
   }
 
-  if (action === "employees") {
-    const companyId = body.companyId;
-    if (!companyId || typeof companyId !== "string") {
-      return jsonResponse({ error: "Falta company_id." }, 400);
-    }
+  if (action === "divisions") {
+    // Todas, sin filtrar por empresa: el front las filtra por company_id
+    // localmente para decidir si mostrar el campo "División".
+    const { data } = await adminClient.from("divisions").select("id, company_id, name").order("name");
+    return jsonResponse({ divisions: data ?? [] });
+  }
+
+  if (action === "visitTypes") {
+    const { data } = await adminClient.from("visit_types").select("id, name").order("name");
+    return jsonResponse({ visitTypes: data ?? [] });
+  }
+
+  if (action === "visitorCompanies") {
+    // Nombres de empresas de visitantes ya usados en visitas reales,
+    // ordenados por frecuencia — el front los combina con una lista de
+    // sugerencias comunes para autocompletar "Empresa del visitante".
     const { data } = await adminClient
-      .from("employees")
-      .select("id, full_name")
-      .eq("company_id", companyId)
-      .eq("active", true)
-      .order("full_name");
-    return jsonResponse({ employees: data ?? [] });
+      .from("visits")
+      .select("visitor_company")
+      .not("visitor_company", "is", null);
+
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const row of data ?? []) {
+      const name = row.visitor_company?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      const existing = counts.get(key);
+      if (existing) existing.count += 1;
+      else counts.set(key, { label: name, count: 1 });
+    }
+
+    const visitorCompanies = Array.from(counts.values())
+      .sort((a, b) => b.count - a.count)
+      .map((entry) => entry.label);
+
+    return jsonResponse({ visitorCompanies });
   }
 
   // Lookup público de un pre-registro por su id (uuid no adivinable). Solo
@@ -76,13 +108,24 @@ Deno.serve(async (req) => {
     const { data, error } = await adminClient
       .from("visit_preregistrations")
       .select(
-        "id, visitor_name, visitor_company, reason, visit_date, visit_time, status, used_at, created_at, employees(full_name), companies(name)"
+        "id, visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name)"
       )
       .eq("id", id)
       .maybeSingle();
 
     if (error || !data) {
       return jsonResponse({ error: "Pre-registro no encontrado." }, 404);
+    }
+
+    // Un pre-registro cancelado o vencido ya no debe ser accesible en
+    // absoluto: ni sus datos ni su QR se devuelven, en vez de mandarlos y
+    // dejar que el front decida si los muestra o no.
+    const expiresOn = data.extended_until ?? addDaysIso(data.visit_date, 7);
+    const noLongerValid =
+      data.status === "cancelada" || data.status === "vencida" || todayIso() > expiresOn;
+
+    if (noLongerValid) {
+      return jsonResponse({ error: "Este pre-registro ya venció y no está disponible." }, 410);
     }
 
     return jsonResponse({ preregistration: data });
@@ -94,23 +137,55 @@ Deno.serve(async (req) => {
 
   const visitorName = body.visitorName;
   const visitorCompany = body.visitorCompany;
+  const visitorPhone = body.visitorPhone;
+  const visitorEmail = body.visitorEmail;
   const companyId = body.companyId;
   const hostEmployeeId = body.hostEmployeeId;
+  const visitType = body.visitType;
   const reason = body.reason;
+  const division = body.division;
   const visitDate = body.visitDate;
   const visitTime = body.visitTime;
+  const hasVehicle = body.hasVehicle;
+  const vehiclePlate = body.vehiclePlate;
+  const vehicleColor = body.vehicleColor;
+  const vehicleModel = body.vehicleModel;
 
   if (
     typeof visitorName !== "string" ||
     !visitorName.trim() ||
+    typeof visitorCompany !== "string" ||
+    !visitorCompany.trim() ||
+    typeof visitorPhone !== "string" ||
+    !visitorPhone.trim() ||
+    typeof visitorEmail !== "string" ||
+    !visitorEmail.trim() ||
     typeof companyId !== "string" ||
     !companyId ||
-    typeof hostEmployeeId !== "string" ||
-    !hostEmployeeId ||
+    (hostEmployeeId !== undefined && hostEmployeeId !== null && typeof hostEmployeeId !== "string") ||
     typeof visitDate !== "string" ||
-    !visitDate
+    !visitDate ||
+    typeof visitTime !== "string" ||
+    !visitTime.trim() ||
+    typeof visitType !== "string" ||
+    !visitType.trim() ||
+    typeof reason !== "string" ||
+    !reason.trim() ||
+    (hasVehicle !== "si" && hasVehicle !== "no")
   ) {
     return jsonResponse({ error: "Faltan campos requeridos." }, 400);
+  }
+
+  if (
+    hasVehicle === "si" &&
+    (typeof vehiclePlate !== "string" ||
+      !vehiclePlate.trim() ||
+      typeof vehicleColor !== "string" ||
+      !vehicleColor.trim() ||
+      typeof vehicleModel !== "string" ||
+      !vehicleModel.trim())
+  ) {
+    return jsonResponse({ error: "Faltan los datos del vehículo (placas, color, modelo)." }, 400);
   }
 
   if (visitDate < todayIso()) {
@@ -127,20 +202,24 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "La empresa no existe." }, 400);
   }
 
-  const { data: employee } = await adminClient
-    .from("employees")
-    .select("id, company_id, active")
-    .eq("id", hostEmployeeId)
-    .maybeSingle();
+  // "A quién visitas" ya no se pide en el formulario público (exponía la
+  // lista completa de colaboradores sin autenticación): se elige en
+  // recepción al hacer el check-in real, así que aquí es opcional.
+  const hasHostEmployee = typeof hostEmployeeId === "string" && hostEmployeeId;
 
-  if (!employee) {
-    return jsonResponse({ error: "El colaborador no existe." }, 400);
-  }
-  if (employee.company_id !== companyId) {
-    return jsonResponse({ error: "El colaborador no pertenece a esa empresa." }, 400);
-  }
-  if (!employee.active) {
-    return jsonResponse({ error: "El colaborador ya no está activo." }, 400);
+  if (hasHostEmployee) {
+    const { data: employee } = await adminClient
+      .from("employees")
+      .select("id, active")
+      .eq("id", hostEmployeeId)
+      .maybeSingle();
+
+    if (!employee) {
+      return jsonResponse({ error: "El colaborador no existe." }, 400);
+    }
+    if (!employee.active) {
+      return jsonResponse({ error: "El colaborador ya no está activo." }, 400);
+    }
   }
 
   const { data: created, error: insertError } = await adminClient
@@ -149,10 +228,18 @@ Deno.serve(async (req) => {
       company_id: companyId,
       visitor_name: visitorName,
       visitor_company: typeof visitorCompany === "string" && visitorCompany ? visitorCompany : null,
-      host_employee_id: hostEmployeeId,
+      visitor_phone: visitorPhone,
+      visitor_email: visitorEmail,
+      host_employee_id: hasHostEmployee ? hostEmployeeId : null,
+      visit_type: visitType,
       reason: typeof reason === "string" && reason ? reason : null,
+      division: typeof division === "string" && division ? division : null,
       visit_date: visitDate,
       visit_time: typeof visitTime === "string" && visitTime ? visitTime : null,
+      has_vehicle: hasVehicle === "si",
+      vehicle_plate: hasVehicle === "si" ? vehiclePlate : null,
+      vehicle_color: hasVehicle === "si" ? vehicleColor : null,
+      vehicle_model: hasVehicle === "si" ? vehicleModel : null,
     })
     .select("id")
     .single();
