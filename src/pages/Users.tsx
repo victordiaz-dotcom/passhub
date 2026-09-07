@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
@@ -47,6 +48,10 @@ export default function Users() {
   const [resetMode, setResetMode] = useState<"auto" | "custom">("auto");
   const [resetCustomPassword, setResetCustomPassword] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isEditing = editingId !== null;
 
@@ -225,6 +230,27 @@ export default function Users() {
     }
 
     await supabase.from("profiles").update({ active: !account.active }).eq("id", account.id);
+    loadAccounts();
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+
+    setDeleteError(null);
+    setDeletingId(deleteTarget.id);
+
+    const { data, error: invokeError } = await supabase.functions.invoke("delete-user", {
+      body: { userId: deleteTarget.id },
+    });
+
+    setDeletingId(null);
+
+    if (invokeError || data?.error) {
+      setDeleteError(data?.error ?? "No se pudo eliminar la cuenta. Intenta de nuevo.");
+      return;
+    }
+
+    setDeleteTarget(null);
     loadAccounts();
   }
 
@@ -417,6 +443,8 @@ export default function Users() {
 
       <h2 className="mb-4 font-display text-base font-bold text-ink">Cuentas registradas</h2>
 
+      {deleteError && <p className="mb-3 text-sm text-danger">{deleteError}</p>}
+
       <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
@@ -498,6 +526,20 @@ export default function Users() {
                       >
                         {account.active ? "Desactivar" : "Activar"}
                       </button>
+                      {isSuperadmin && (
+                        <button
+                          type="button"
+                          disabled={isSelf || deletingId === account.id}
+                          title={isSelf ? "No puedes eliminar tu propia cuenta." : undefined}
+                          onClick={() => {
+                            setDeleteTarget(account);
+                            setDeleteError(null);
+                          }}
+                          className="text-sm font-medium text-danger hover:text-danger/80 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Eliminar cuenta
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -583,6 +625,16 @@ export default function Users() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`¿Eliminar la cuenta de ${deleteTarget?.full_name ?? "esta persona"}?`}
+        message="Esta acción no se puede deshacer: se elimina el acceso por completo, incluida la cuenta de inicio de sesión."
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
