@@ -398,7 +398,7 @@ export default function Historial() {
               className={filterInputClass}
             >
               <option value="visita">Fecha de visita</option>
-              <option value="creacion">Fecha en que se generó</option>
+              <option value="creacion">Fecha de creación</option>
             </select>
           </div>
         )}
@@ -406,7 +406,7 @@ export default function Historial() {
         {isAdmin && view === "visitas" && (
           <div>
             <label htmlFor="historialCreator" className="mb-1 block text-xs font-medium text-ink-soft">
-              Recepcionista
+              Recepción
             </label>
             <select
               id="historialCreator"
@@ -476,7 +476,7 @@ export default function Historial() {
                 <tr key={row.name.toLowerCase()} className="border-b border-line last:border-0">
                   <td className="px-4 py-3 font-medium text-ink">{row.name}</td>
                   <td className="px-4 py-3 text-ink-soft">
-                    {row.count} {row.count === 1 ? "vez" : "veces"} ha venido a la empresa
+                    {row.count} {row.count === 1 ? "vez" : "veces"}
                   </td>
                   <td className="px-4 py-3 text-ink-soft">
                     {new Date(row.lastVisit).toLocaleDateString()}
@@ -556,7 +556,7 @@ export default function Historial() {
                 <th className="px-4 py-3 font-medium">Visitante</th>
                 <th className="px-4 py-3 font-medium">Visita a</th>
                 <th className="px-4 py-3 font-medium">Fecha de visita</th>
-                <th className="px-4 py-3 font-medium">Se generó</th>
+                <th className="px-4 py-3 font-medium">Fecha de creación</th>
                 <th className="px-4 py-3 font-medium">Entró</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 font-medium">Vigente hasta</th>

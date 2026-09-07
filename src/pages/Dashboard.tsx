@@ -163,7 +163,7 @@ export default function Dashboard() {
                 viewMode === "dentro" ? "bg-accent text-white" : "text-ink-soft hover:text-ink"
               }`}
             >
-              Todos los que están dentro
+              Visitantes dentro
             </button>
             <button
               type="button"
@@ -271,7 +271,7 @@ export default function Dashboard() {
         ) : (
           <div className="rounded-lg border border-accent bg-accent-tint p-4 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-accent-dark">
-              Personas dentro ahora
+              Actualmente dentro
             </p>
             <p className="mt-1 font-display text-2xl font-bold text-accent-dark">{visits.length}</p>
           </div>
@@ -307,7 +307,7 @@ export default function Dashboard() {
                 <td colSpan={9} className="px-4 py-6 text-center text-ink-soft">
                   {viewMode === "fecha"
                     ? "No hay visitas registradas para esta fecha."
-                    : "No hay nadie dentro en este momento."}
+                    : "No hay visitantes dentro en este momento."}
                 </td>
               </tr>
             )}

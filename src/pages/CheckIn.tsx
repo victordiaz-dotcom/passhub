@@ -602,7 +602,7 @@ export default function CheckIn() {
                       className={plainSelectClass}
                     >
                       <option value="" disabled>
-                        Seleccione una empresa
+                        Selecciona una empresa
                       </option>
                       {companies.map((company) => (
                         <option key={company.id} value={company.id}>

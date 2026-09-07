@@ -241,7 +241,7 @@ export default function Users() {
           <p className="mt-2 text-sm text-ink-soft">Contraseña temporal (solo se muestra una vez):</p>
           <p className="mt-1 font-display text-lg font-bold text-ink">{tempPasswordInfo.tempPassword}</p>
           <p className="mt-2 text-xs text-ink-soft">
-            Cópiala y entrégasela a la persona en persona o por un canal seguro.
+            Cópiala y entrégasela en persona o por un canal seguro.
           </p>
           <button
             type="button"
@@ -356,7 +356,7 @@ export default function Users() {
           </div>
 
           {!isEditing && (
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 border-t border-line pt-4">
               <label className="mb-1 block text-sm font-medium text-ink-soft">Contraseña</label>
               <div className="flex gap-4 text-sm text-ink">
                 <label className="flex items-center gap-1.5">
@@ -375,7 +375,7 @@ export default function Users() {
                     checked={form.passwordMode === "custom"}
                     onChange={() => setForm({ ...form, passwordMode: "custom" })}
                   />
-                  Escribirla yo
+                  Escribir manualmente
                 </label>
               </div>
               {form.passwordMode === "custom" && (
@@ -414,6 +414,8 @@ export default function Users() {
           {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
         </form>
       </div>
+
+      <h2 className="mb-4 font-display text-base font-bold text-ink">Cuentas registradas</h2>
 
       <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
         <table className="w-full min-w-[900px] text-left text-sm">
@@ -543,7 +545,7 @@ export default function Users() {
                   checked={resetMode === "custom"}
                   onChange={() => setResetMode("custom")}
                 />
-                Escribirla yo
+                Escribir manualmente
               </label>
             </div>
 

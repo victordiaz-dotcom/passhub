@@ -298,7 +298,7 @@ export function AnalyticsSection() {
             )}
           </ChartCard>
 
-          <ChartCard title="Comparativa mes actual vs anterior">
+          <ChartCard title="Mes actual frente al mes anterior">
             {comparison ? (
               <div className="flex h-[220px] flex-col items-center justify-center gap-3">
                 <p className="font-display text-4xl font-bold text-ink">{comparison.current}</p>

@@ -53,7 +53,7 @@ export default function Employees() {
       return;
     }
 
-    setSyncMessage({ text: `Se sincronizaron ${data.synced} empleados.`, isError: false });
+    setSyncMessage({ text: `Se sincronizaron ${data.synced} colaboradores.`, isError: false });
     loadEmployees();
   }
 
@@ -67,7 +67,7 @@ export default function Employees() {
           disabled={syncing}
           className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink-soft hover:bg-paper disabled:opacity-50"
         >
-          {syncing ? "Sincronizando..." : "Sincronizar empleados"}
+          {syncing ? "Sincronizando..." : "Sincronizar colaboradores"}
         </button>
       </div>
 
