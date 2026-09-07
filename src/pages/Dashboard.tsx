@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AnalyticsSection } from "@/components/analytics/AnalyticsSection";
+import { checkoutVisit } from "@/lib/checkout";
 import type { Tables } from "@/integrations/supabase/types";
 
 type VisitRow = Pick<
@@ -124,10 +125,7 @@ export default function Dashboard() {
     // Admin (y recepción, y super admin, que también carga el rol admin)
     // puede cerrar cualquier visita sin restricción, sin importar quién la
     // haya registrado.
-    const { error } = await supabase
-      .from("visits")
-      .update({ check_out_at: new Date().toISOString(), status: "fuera", checked_out_by: session.user.id })
-      .eq("id", visitId);
+    const { error } = await checkoutVisit(visitId, session.user.id);
 
     if (error) {
       console.error(error);

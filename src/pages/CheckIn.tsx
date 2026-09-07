@@ -6,6 +6,7 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
+import { checkoutVisit } from "@/lib/checkout";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Pick<Tables<"employees">, "id" | "full_name">;
@@ -213,14 +214,7 @@ export default function CheckIn() {
 
     setCheckoutError(null);
 
-    const { error: checkoutErr } = await supabase
-      .from("visits")
-      .update({
-        check_out_at: new Date().toISOString(),
-        status: "fuera",
-        checked_out_by: session.user.id,
-      })
-      .eq("id", visitId);
+    const { error: checkoutErr } = await checkoutVisit(visitId, session.user.id);
 
     if (checkoutErr) {
       console.error(checkoutErr);

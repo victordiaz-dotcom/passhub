@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { checkoutVisit } from "@/lib/checkout";
 import type { Tables } from "@/integrations/supabase/types";
 
 type VisitRow = Pick<
@@ -97,6 +99,8 @@ export default function Historial() {
   const [visitorNameQuery, setVisitorNameQuery] = useState("");
   const [visits, setVisits] = useState<VisitRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutTarget, setCheckoutTarget] = useState<VisitRow | null>(null);
   const [preregs, setPreregs] = useState<PreregRow[]>([]);
   const [preregLoading, setPreregLoading] = useState(true);
   const [extensionDrafts, setExtensionDrafts] = useState<Record<string, string>>({});
@@ -159,6 +163,21 @@ export default function Historial() {
     const { data } = await query;
     setVisits((data as VisitRow[] | null) ?? []);
     setLoading(false);
+  }
+
+  async function handleCheckout(visitId: string) {
+    if (!session?.user) return;
+    setCheckoutError(null);
+
+    const { error } = await checkoutVisit(visitId, session.user.id);
+
+    if (error) {
+      console.error(error);
+      setCheckoutError("No se pudo registrar la salida. Intenta de nuevo.");
+      return;
+    }
+
+    loadVisits();
   }
 
   useEffect(() => {
@@ -487,7 +506,9 @@ export default function Historial() {
           </table>
         </div>
       ) : view === "visitas" ? (
-        <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
+        <div>
+          {checkoutError && <p className="mb-3 text-sm text-danger">{checkoutError}</p>}
+          <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-line text-ink-soft">
@@ -501,12 +522,13 @@ export default function Historial() {
                 <th className="px-4 py-3 font-medium">Hora de salida</th>
                 <th className="px-4 py-3 font-medium">Marcó salida</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
+                <th className="px-4 py-3 font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {!loading && visits.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-6 text-center text-ink-soft">
+                  <td colSpan={11} className="px-4 py-6 text-center text-ink-soft">
                     No hay visitas que coincidan con estos filtros.
                   </td>
                 </tr>
@@ -543,10 +565,24 @@ export default function Historial() {
                       {visit.status === "dentro" ? "Dentro" : "Fuera"}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    {visit.status === "dentro" ? (
+                      <button
+                        type="button"
+                        onClick={() => setCheckoutTarget(visit)}
+                        className="text-sm font-medium text-accent hover:text-accent-dark"
+                      >
+                        Registrar salida
+                      </button>
+                    ) : (
+                      <span className="text-sm text-ink-soft">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
@@ -637,6 +673,17 @@ export default function Historial() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!checkoutTarget}
+        title="¿Registrar la salida de este visitante?"
+        message={checkoutTarget ? `Se registrará la salida de ${checkoutTarget.visitor_name}.` : undefined}
+        onConfirm={() => {
+          if (checkoutTarget) handleCheckout(checkoutTarget.id);
+          setCheckoutTarget(null);
+        }}
+        onCancel={() => setCheckoutTarget(null)}
+      />
     </div>
   );
 }
