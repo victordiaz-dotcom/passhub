@@ -13,11 +13,16 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
-const ACCENT = "#1F7A6C";
-const ACCENT_DARK = "#0F5548";
-const WARN = "#C97A2B";
-const DANGER = "#B3392C";
-const INK_SOFT = "#3C4656";
+// Mismos valores que los tokens de tailwind.config.ts (accent, accent-dark,
+// warn, danger, ink-soft, line) — Recharts no acepta clases de Tailwind en
+// sus props de color, así que se repiten aquí en hex para que las gráficas
+// no se desincronicen visualmente del resto de la app.
+const ACCENT = "#1873dc";
+const ACCENT_DARK = "#0e4381";
+const WARN = "#ff9800";
+const DANGER = "#f44336";
+const INK_SOFT = "#6c757d";
+const GRID_STROKE = "#e9e9e9";
 
 const STATUS_LABELS: Record<string, string> = {
   pendiente: "Pendiente",
@@ -288,7 +293,7 @@ export function AnalyticsSection() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={monthly}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCDFD9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
@@ -331,7 +336,7 @@ export function AnalyticsSection() {
             ) : (
               <ResponsiveContainer width="100%" height={Math.max(220, topCompanies.length * 36)}>
                 <BarChart data={topCompanies} layout="vertical" margin={{ left: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCDFD9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
                   <Tooltip />
@@ -347,7 +352,7 @@ export function AnalyticsSection() {
             ) : (
               <ResponsiveContainer width="100%" height={Math.max(220, topHosts.length * 36)}>
                 <BarChart data={topHosts} layout="vertical" margin={{ left: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCDFD9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
                   <Tooltip />
@@ -363,7 +368,7 @@ export function AnalyticsSection() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={statusBreakdown}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCDFD9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
@@ -383,7 +388,7 @@ export function AnalyticsSection() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={byWeekday}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCDFD9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
@@ -399,7 +404,7 @@ export function AnalyticsSection() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={byHour}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCDFD9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
                   <XAxis dataKey="hour" interval={2} tick={{ fontSize: 11 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
