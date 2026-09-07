@@ -13,28 +13,55 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
-// Mismos valores que los tokens de tailwind.config.ts (accent, accent-dark,
-// warn, danger, ink-soft, line) — Recharts no acepta clases de Tailwind en
-// sus props de color, así que se repiten aquí en hex para que las gráficas
-// no se desincronicen visualmente del resto de la app.
-const ACCENT = "#1873dc";
-const ACCENT_DARK = "#0e4381";
-const WARN = "#ff9800";
-const DANGER = "#f44336";
-const INK_SOFT = "#6c757d";
+// Grid de fondo de las gráficas: no es un color "de dato", así que no se
+// expone en el personalizador — se mantiene fijo al token `line`.
 const GRID_STROKE = "#e9e9e9";
+
+type ChartColors = {
+  accent: string;
+  accentDark: string;
+  warn: string;
+  danger: string;
+  inkSoft: string;
+};
+
+// Mismos valores que los tokens de tailwind.config.ts (accent, accent-dark,
+// warn, danger, ink-soft) — son el punto de partida y lo que "Restaurar
+// colores por defecto" recupera; el usuario puede personalizarlos desde la
+// interfaz (persisten en localStorage, por navegador).
+const DEFAULT_CHART_COLORS: ChartColors = {
+  accent: "#1873dc",
+  accentDark: "#0e4381",
+  warn: "#ff9800",
+  danger: "#f44336",
+  inkSoft: "#6c757d",
+};
+
+const CHART_COLORS_STORAGE_KEY = "passhub_analytics_chart_colors";
+
+function loadStoredChartColors(): ChartColors {
+  try {
+    const raw = localStorage.getItem(CHART_COLORS_STORAGE_KEY);
+    if (!raw) return DEFAULT_CHART_COLORS;
+    return { ...DEFAULT_CHART_COLORS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_CHART_COLORS;
+  }
+}
+
+const COLOR_FIELDS: { key: keyof ChartColors; label: string }[] = [
+  { key: "accent", label: "Principal (entradas, empresas, horarios)" },
+  { key: "accentDark", label: "Secundario (colaboradores)" },
+  { key: "warn", label: "Pre-registro pendiente" },
+  { key: "danger", label: "Pre-registro vencida" },
+  { key: "inkSoft", label: "Pre-registro cancelada" },
+];
 
 const STATUS_LABELS: Record<string, string> = {
   pendiente: "Pendiente",
   usada: "Usada (check-in)",
   vencida: "Vencida",
   cancelada: "Cancelada",
-};
-const STATUS_COLORS: Record<string, string> = {
-  pendiente: WARN,
-  usada: ACCENT,
-  vencida: DANGER,
-  cancelada: INK_SOFT,
 };
 
 const WEEKDAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -85,7 +112,7 @@ function monthSpine(fromDate: string, toDate: string) {
 
 type MonthlyPoint = { month: string; visits: number };
 type NamedCount = { name: string; visits: number };
-type StatusCount = { status: string; label: string; visits: number; color: string };
+type StatusCount = { status: string; label: string; visits: number };
 type HourPoint = { hour: string; visits: number };
 type WeekdayPoint = { day: string; visits: number };
 
@@ -119,6 +146,38 @@ export function AnalyticsSection() {
   const [byHour, setByHour] = useState<HourPoint[]>([]);
   const [byWeekday, setByWeekday] = useState<WeekdayPoint[]>([]);
   const [comparison, setComparison] = useState<{ current: number; previous: number } | null>(null);
+
+  const [chartColors, setChartColors] = useState<ChartColors>(loadStoredChartColors);
+  const [showColorSettings, setShowColorSettings] = useState(false);
+
+  const statusColorMap: Record<string, string> = {
+    pendiente: chartColors.warn,
+    usada: chartColors.accent,
+    vencida: chartColors.danger,
+    cancelada: chartColors.inkSoft,
+  };
+
+  function updateChartColor(key: keyof ChartColors, value: string) {
+    setChartColors((prev) => {
+      const next = { ...prev, [key]: value };
+      try {
+        localStorage.setItem(CHART_COLORS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // localStorage puede fallar (modo privado, cuota); el cambio se
+        // sigue aplicando en esta sesión aunque no persista.
+      }
+      return next;
+    });
+  }
+
+  function resetChartColors() {
+    setChartColors(DEFAULT_CHART_COLORS);
+    try {
+      localStorage.removeItem(CHART_COLORS_STORAGE_KEY);
+    } catch {
+      // ver comentario en updateChartColor
+    }
+  }
 
   async function loadAll() {
     setLoading(true);
@@ -187,7 +246,6 @@ export function AnalyticsSection() {
         status,
         label: STATUS_LABELS[status],
         visits: statusMap.get(status) ?? 0,
-        color: STATUS_COLORS[status],
       }))
     );
 
@@ -280,7 +338,43 @@ export function AnalyticsSection() {
             className="rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setShowColorSettings((v) => !v)}
+          className="rounded-md border border-line bg-card px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink"
+        >
+          {showColorSettings ? "Ocultar colores" : "Personalizar colores"}
+        </button>
       </div>
+
+      {showColorSettings && (
+        <div className="mb-6 flex flex-wrap items-end gap-4 rounded-lg border border-line bg-card p-4 shadow-sm">
+          {COLOR_FIELDS.map((field) => (
+            <div key={field.key}>
+              <label
+                htmlFor={`chartColor-${field.key}`}
+                className="mb-1 block text-xs font-medium text-ink-soft"
+              >
+                {field.label}
+              </label>
+              <input
+                id={`chartColor-${field.key}`}
+                type="color"
+                value={chartColors[field.key]}
+                onChange={(e) => updateChartColor(field.key, e.target.value)}
+                className="h-9 w-14 cursor-pointer rounded border border-line bg-card p-1"
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={resetChartColors}
+            className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink"
+          >
+            Restaurar colores por defecto
+          </button>
+        </div>
+      )}
 
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
       {loading && <p className="mb-4 text-sm text-ink-soft">Cargando analíticas...</p>}
@@ -297,7 +391,7 @@ export function AnalyticsSection() {
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="visits" stroke={ACCENT} strokeWidth={2} dot />
+                  <Line type="monotone" dataKey="visits" stroke={chartColors.accent} strokeWidth={2} dot />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -340,7 +434,7 @@ export function AnalyticsSection() {
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="visits" fill={ACCENT} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="visits" fill={chartColors.accent} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -356,7 +450,7 @@ export function AnalyticsSection() {
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="visits" fill={ACCENT_DARK} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="visits" fill={chartColors.accentDark} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -374,7 +468,7 @@ export function AnalyticsSection() {
                   <Tooltip />
                   <Bar dataKey="visits" radius={[4, 4, 0, 0]}>
                     {statusBreakdown.map((row) => (
-                      <Cell key={row.status} fill={row.color} />
+                      <Cell key={row.status} fill={statusColorMap[row.status]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -392,7 +486,7 @@ export function AnalyticsSection() {
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="visits" fill={ACCENT} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="visits" fill={chartColors.accent} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -408,7 +502,7 @@ export function AnalyticsSection() {
                   <XAxis dataKey="hour" interval={2} tick={{ fontSize: 11 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="visits" fill={ACCENT} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="visits" fill={chartColors.accent} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
