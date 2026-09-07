@@ -15,10 +15,10 @@ type VisitRow = Pick<
   | "status"
   | "preregistration_id"
   | "visit_type"
+  | "created_by_name"
+  | "checked_out_by_name"
 > & {
   employees: Pick<Tables<"employees">, "full_name"> | null;
-  creator: Pick<Tables<"profiles">, "full_name"> | null;
-  checkout_profile: Pick<Tables<"profiles">, "full_name"> | null;
 };
 
 type PreregRow = Pick<
@@ -142,7 +142,7 @@ export default function Historial() {
     let query = supabase
       .from("visits")
       .select(
-        "id, folio, visitor_name, check_in_at, check_out_at, status, preregistration_id, visit_type, employees(full_name), creator:profiles!visits_created_by_fkey(full_name), checkout_profile:profiles!visits_checked_out_by_fkey(full_name)"
+        "id, folio, visitor_name, check_in_at, check_out_at, status, preregistration_id, visit_type, created_by_name, checked_out_by_name, employees(full_name)"
       )
       .order("check_in_at", { ascending: false });
 
@@ -539,7 +539,7 @@ export default function Historial() {
                   <td className="px-4 py-3 text-ink">{visit.visitor_name}</td>
                   <td className="px-4 py-3 text-ink-soft">{visit.employees?.full_name ?? "—"}</td>
                   <td className="px-4 py-3 text-ink-soft">{visit.visit_type ?? "—"}</td>
-                  <td className="px-4 py-3 text-ink-soft">{visit.creator?.full_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-soft">{visit.created_by_name ?? "—"}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${
@@ -553,7 +553,7 @@ export default function Historial() {
                   </td>
                   <td className="px-4 py-3 text-ink-soft">{formatTime(visit.check_in_at)}</td>
                   <td className="px-4 py-3 text-ink-soft">{formatTime(visit.check_out_at)}</td>
-                  <td className="px-4 py-3 text-ink-soft">{visit.checkout_profile?.full_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-soft">{visit.checked_out_by_name ?? "—"}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${

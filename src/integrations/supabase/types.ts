@@ -321,9 +321,11 @@ export type Database = {
           check_in_at: string
           check_out_at: string | null
           checked_out_by: string | null
+          checked_out_by_name: string | null
           company_id: string
           created_at: string
           created_by: string
+          created_by_name: string | null
           division: string | null
           folio: string | null
           has_vehicle: boolean | null
@@ -348,9 +350,11 @@ export type Database = {
           check_in_at?: string
           check_out_at?: string | null
           checked_out_by?: string | null
+          checked_out_by_name?: string | null
           company_id: string
           created_at?: string
           created_by: string
+          created_by_name?: string | null
           division?: string | null
           folio?: string | null
           has_vehicle?: boolean | null
@@ -375,9 +379,11 @@ export type Database = {
           check_in_at?: string
           check_out_at?: string | null
           checked_out_by?: string | null
+          checked_out_by_name?: string | null
           company_id?: string
           created_at?: string
           created_by?: string
+          created_by_name?: string | null
           division?: string | null
           folio?: string | null
           has_vehicle?: boolean | null

@@ -8,11 +8,17 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type VisitRow = Pick<
   Tables<"visits">,
-  "id" | "folio" | "visitor_name" | "check_in_at" | "check_out_at" | "status" | "company_id"
+  | "id"
+  | "folio"
+  | "visitor_name"
+  | "check_in_at"
+  | "check_out_at"
+  | "status"
+  | "company_id"
+  | "created_by_name"
+  | "checked_out_by_name"
 > & {
   employees: Pick<Tables<"employees">, "full_name"> | null;
-  creator: Pick<Tables<"profiles">, "full_name"> | null;
-  checkout_profile: Pick<Tables<"profiles">, "full_name"> | null;
 };
 
 type VisitType = Pick<Tables<"visit_types">, "id" | "name">;
@@ -98,7 +104,7 @@ export default function Dashboard() {
     let query = supabase
       .from("visits")
       .select(
-        "id, folio, visitor_name, check_in_at, check_out_at, status, company_id, employees(full_name), creator:profiles!visits_created_by_fkey(full_name), checkout_profile:profiles!visits_checked_out_by_fkey(full_name)"
+        "id, folio, visitor_name, check_in_at, check_out_at, status, company_id, created_by_name, checked_out_by_name, employees(full_name)"
       )
       .order("check_in_at", { ascending: false });
 
@@ -321,10 +327,10 @@ export default function Dashboard() {
                 </td>
                 <td className="px-4 py-4 text-ink-soft">{visit.folio}</td>
                 <td className="px-4 py-4 text-ink-soft">{visit.employees?.full_name ?? "—"}</td>
-                <td className="px-4 py-4 text-ink-soft">{visit.creator?.full_name ?? "—"}</td>
+                <td className="px-4 py-4 text-ink-soft">{visit.created_by_name ?? "—"}</td>
                 <td className="px-4 py-4 text-ink-soft">{formatTime(visit.check_in_at)}</td>
                 <td className="px-4 py-4 text-ink-soft">{formatTime(visit.check_out_at)}</td>
-                <td className="px-4 py-4 text-ink-soft">{visit.checkout_profile?.full_name ?? "—"}</td>
+                <td className="px-4 py-4 text-ink-soft">{visit.checked_out_by_name ?? "—"}</td>
                 <td className="px-4 py-4">
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-medium ${
