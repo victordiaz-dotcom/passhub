@@ -2,8 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Canales RGB (sin "rgb()", separados por espacio) en vez de hex: así
+   tailwind.config.ts puede armar rgb(var(--x) / <alpha-value>) y seguir
+   soportando modificadores de opacidad (bg-danger/10, hover:bg-ink/90,
+   text-accent-dark/60, etc.) — con var(--x) apuntando a un hex plano,
+   Tailwind no puede calcular esa mezcla en build time y esas clases
+   simplemente no se generan. */
+:root {
+  --ink: 29 29 31; /* #1d1d1f */
+  --ink-soft: 108 117 125; /* #6c757d */
+  --paper: 244 246 249; /* #f4f6f9 */
+  --card: 255 255 255; /* #ffffff */
+  --line: 233 233 233; /* #e9e9e9 */
+  --accent: 24 115 220; /* #1873dc */
+  --accent-tint: 230 241 252; /* #e6f1fc */
+  --accent-dark: 14 67 129; /* #0e4381 */
+  --warn: 255 152 0; /* #ff9800 */
+  --warn-tint: 253 243 220; /* #fdf3dc */
+  --danger: 244 67 54; /* #f44336 */
+}
+
+.dark {
+  --ink: 238 241 246; /* #eef1f6 */
+  --ink-soft: 154 164 178; /* #9aa4b2 */
+  --paper: 20 23 28; /* #14171c */
+  --card: 29 33 41; /* #1d2129 */
+  --line: 43 48 58; /* #2b303a */
+  --accent: 59 130 246; /* #3b82f6 */
+  --accent-tint: 20 41 67; /* #142943 */
+  --accent-dark: 125 182 251; /* #7db6fb */
+  --warn: 255 167 38; /* #ffa726 */
+  --warn-tint: 58 42 18; /* #3a2a12 */
+  --danger: 239 83 80; /* #ef5350 */
+}
+
 @layer base {
   body {
     @apply bg-paper font-sans text-ink;
   }
+}
+
+/* AppHeader/Guardia/CheckIn usan bg-ink y bg-ink-soft como una superficie
+   oscura fija (barra superior, tarjeta de resumen del pase, placeholder de
+   foto), siempre junto a texto blanco hardcodeado — no como color de texto.
+   "ink"/"ink-soft" también son el color de texto principal/secundario de
+   toda la app (cientos de usos de text-ink/text-ink-soft), así que en modo
+   oscuro esas variables se invierten a un tono claro para que el texto siga
+   siendo legible. Sin este parche, esas superficies se volverían casi
+   blancas con texto blanco encima (ilegibles). Se fija su fondo al mismo
+   tono oscuro de siempre, en vez de tocar esos componentes. */
+.dark [class~="bg-ink"] {
+  background-color: #1d1d1f !important;
+}
+.dark [class~="hover:bg-ink/90"]:hover {
+  background-color: #2a2a2d !important;
+}
+.dark [class~="bg-ink-soft"] {
+  background-color: #3a4048 !important;
 }

@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import { IdleLogout } from "@/components/IdleLogout";
+import { ThemeInitializer } from "@/components/ThemeInitializer";
 import { useAuth } from "@/hooks/useAuth";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
@@ -30,6 +31,7 @@ function HomeRoute() {
 export default function App() {
   return (
     <>
+      <ThemeInitializer />
       <IdleLogout />
       <Routes>
         <Route path="/login" element={<Login />} />

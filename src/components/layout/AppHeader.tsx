@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { APP_VERSION } from "@/lib/version";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 // font-medium siempre presente (no solo en isActive): si el peso de la
 // fuente cambia entre estados, cada link cambia de ancho y empuja a los
@@ -23,6 +24,7 @@ export function AppHeader() {
           </span>
         </span>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
             {firstName}
           </span>
