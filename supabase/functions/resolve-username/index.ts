@@ -14,9 +14,15 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-// Sin JWT a propósito: se llama ANTES de iniciar sesión, para resolver
-// "username" al correo real que espera supabase.auth.signInWithPassword.
-// Solo expone el correo, nunca una lista ni ningún otro dato del perfil.
+const GENERIC_ERROR = { error: "Usuario o contraseña incorrectos." };
+
+// Sin JWT a propósito: se llama ANTES de iniciar sesión, para autenticar por
+// "username" (Supabase Auth solo sabe autenticar por correo). A diferencia
+// de la versión anterior, la contraseña se valida aquí mismo en vez de
+// devolver el correo real al cliente para un segundo intento de login: así
+// nunca se expone el correo real, y "el username no existe" y "el username
+// existe pero la contraseña es incorrecta" devuelven exactamente la misma
+// respuesta genérica — ya no se puede enumerar cuentas por esta vía.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -27,10 +33,10 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  let body: { username?: string };
+  let body: { username?: string; password?: string };
   try {
     body = await req.json();
   } catch {
@@ -38,20 +44,35 @@ Deno.serve(async (req) => {
   }
 
   const username = body.username?.trim().toLowerCase();
-  if (!username) {
-    return jsonResponse({ error: "Falta username." }, 400);
+  const password = body.password;
+  if (!username || !password) {
+    return jsonResponse(GENERIC_ERROR, 400);
   }
 
-  const { data } = await adminClient
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const { data: profile } = await adminClient
     .from("profiles")
     .select("email")
     .eq("username", username)
     .eq("active", true)
     .maybeSingle();
 
-  if (!data) {
-    return jsonResponse({ error: "Usuario o contraseña incorrectos." }, 404);
+  if (!profile) {
+    return jsonResponse(GENERIC_ERROR, 400);
   }
 
-  return jsonResponse({ email: data.email });
+  // Verificación real de la contraseña con la clave anon — el mismo camino
+  // que seguiría el frontend si el usuario hubiera escrito su correo
+  // directamente.
+  const authClient = createClient(supabaseUrl, anonKey);
+  const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
+    email: profile.email,
+    password,
+  });
+
+  if (signInError || !signInData.session) {
+    return jsonResponse(GENERIC_ERROR, 400);
+  }
+
+  return jsonResponse({ session: signInData.session });
 });

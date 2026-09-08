@@ -19,28 +19,35 @@ export default function Login() {
     setSubmitting(true);
 
     const trimmed = identifier.trim();
-    let email = trimmed;
 
-    // Si no parece un correo, se asume que es un username y se resuelve al
-    // correo real antes de llamar signInWithPassword (Supabase Auth solo
-    // sabe autenticar por correo, no por username).
-    if (!trimmed.includes("@")) {
-      const { data, error: resolveError } = await supabase.functions.invoke("resolve-username", {
-        body: { username: trimmed },
-      });
-
-      if (resolveError || !data?.email) {
+    if (trimmed.includes("@")) {
+      const { error } = await supabase.auth.signInWithPassword({ email: trimmed, password });
+      if (error) {
         setError("Usuario o contraseña incorrectos.");
         setSubmitting(false);
-        return;
       }
-
-      email = data.email;
+      return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    // Login por username: la Edge Function resuelve el correo y valida la
+    // contraseña del lado del servidor — nunca nos entrega el correo real,
+    // y "usuario no existe" y "contraseña incorrecta" dan la misma respuesta.
+    const { data, error: fnError } = await supabase.functions.invoke("resolve-username", {
+      body: { username: trimmed, password },
+    });
 
-    if (error) {
+    if (fnError || !data?.session) {
+      setError("Usuario o contraseña incorrectos.");
+      setSubmitting(false);
+      return;
+    }
+
+    const { error: setSessionError } = await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+
+    if (setSessionError) {
       setError("Usuario o contraseña incorrectos.");
       setSubmitting(false);
     }
