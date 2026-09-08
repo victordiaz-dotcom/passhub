@@ -25,6 +25,15 @@ export default {
       letterSpacing: {
         wide: "0.06em",
       },
+      keyframes: {
+        "upload-pulse": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(300%)" },
+        },
+      },
+      animation: {
+        "upload-pulse": "upload-pulse 1.2s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { PhotoUploadField } from "@/components/PhotoUploadField";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { checkoutVisit } from "@/lib/checkout";
@@ -87,8 +88,17 @@ export default function CheckIn() {
   const [division, setDivision] = useState("");
   const [visitDate, setVisitDate] = useState(todayLocal());
   const [visitTime, setVisitTime] = useState("");
-  const [visitorPhoto, setVisitorPhoto] = useState<File | null>(null);
-  const [idPhoto, setIdPhoto] = useState<File | null>(null);
+  // Id de carpeta de Storage para las fotos de este intento de registro —
+  // no es (ni necesita ser) el id real de la visita, que Postgres genera al
+  // insertar la fila: el vínculo real entre la visita y sus fotos son las
+  // columnas visitor_photo_path/id_photo_path, que guardan la ruta exacta
+  // usando este mismo id. Se mantiene estable durante todo el intento
+  // (nunca se regenera entre subir una foto y enviar el formulario) y solo
+  // cambia al iniciar un registro nuevo, en resetForm().
+  const [photoSessionId, setPhotoSessionId] = useState(() => crypto.randomUUID());
+  const [photoResetSignal, setPhotoResetSignal] = useState(0);
+  const [visitorPhotoUploaded, setVisitorPhotoUploaded] = useState(false);
+  const [idPhotoUploaded, setIdPhotoUploaded] = useState(false);
   const [visitorPhotoPreview, setVisitorPhotoPreview] = useState<string | null>(null);
 
   const [preregistrationId, setPreregistrationId] = useState<string | null>(null);
@@ -101,9 +111,6 @@ export default function CheckIn() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [folio, setFolio] = useState<string | null>(null);
-
-  const visitorPhotoInput = useRef<HTMLInputElement>(null);
-  const idPhotoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Cualquier cuenta (admin o recepción) puede elegir cualquier empresa:
@@ -180,16 +187,6 @@ export default function CheckIn() {
       .order("name")
       .then(({ data }) => setVisitTypes(data ?? []));
   }, []);
-
-  useEffect(() => {
-    if (!visitorPhoto) {
-      setVisitorPhotoPreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(visitorPhoto);
-    setVisitorPhotoPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [visitorPhoto]);
 
   async function loadInsideVisits() {
     setInsideLoading(true);
@@ -330,14 +327,14 @@ export default function CheckIn() {
     setDivision("");
     setVisitDate(todayLocal());
     setVisitTime("");
-    setVisitorPhoto(null);
-    setIdPhoto(null);
+    setPhotoSessionId(crypto.randomUUID());
+    setPhotoResetSignal((n) => n + 1);
+    setVisitorPhotoUploaded(false);
+    setIdPhotoUploaded(false);
     setPreregistrationId(null);
     setPreregistrationDate(null);
     setPreregistrationExpiresOn(null);
     setPreregistrationReused(false);
-    if (visitorPhotoInput.current) visitorPhotoInput.current.value = "";
-    if (idPhotoInput.current) idPhotoInput.current.value = "";
   }
 
   function startNewRegistration() {
@@ -353,7 +350,7 @@ export default function CheckIn() {
       setError("Selecciona la empresa anfitriona.");
       return;
     }
-    if (!visitorPhoto || !idPhoto) {
+    if (!visitorPhotoUploaded || !idPhotoUploaded) {
       setError("Debes capturar la foto del visitante y la foto del INE.");
       return;
     }
@@ -366,31 +363,11 @@ export default function CheckIn() {
 
     setSubmitting(true);
 
-    const tempId = crypto.randomUUID();
-    const visitorPhotoPath = `${selectedCompanyId}/${tempId}/visitante.jpg`;
-    const idPhotoPath = `${selectedCompanyId}/${tempId}/ine.jpg`;
-
-    const { error: visitorUploadError } = await supabase.storage
-      .from("visit-photos")
-      .upload(visitorPhotoPath, visitorPhoto, { contentType: visitorPhoto.type });
-
-    if (visitorUploadError) {
-      console.error(visitorUploadError);
-      setError("No se pudo subir la foto del visitante. Intenta de nuevo.");
-      setSubmitting(false);
-      return;
-    }
-
-    const { error: idUploadError } = await supabase.storage
-      .from("visit-photos")
-      .upload(idPhotoPath, idPhoto, { contentType: idPhoto.type });
-
-    if (idUploadError) {
-      console.error(idUploadError);
-      setError("No se pudo subir la foto del INE. Intenta de nuevo.");
-      setSubmitting(false);
-      return;
-    }
+    // Las fotos ya se subieron al elegirlas (PhotoUploadField) — misma ruta
+    // que se usó entonces, calculada igual con selectedCompanyId +
+    // photoSessionId, que no cambiaron desde entonces.
+    const visitorPhotoPath = `${selectedCompanyId}/${photoSessionId}/visitante.jpg`;
+    const idPhotoPath = `${selectedCompanyId}/${photoSessionId}/ine.jpg`;
 
     const { data, error: insertError } = await supabase
       .from("visits")
@@ -802,45 +779,26 @@ export default function CheckIn() {
                 <div className="mb-5 mt-2 border-b border-line" />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="mb-2 text-center text-sm text-ink-soft">Fotografía del visitante</p>
-                    <input
-                      ref={visitorPhotoInput}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => setVisitorPhoto(e.target.files?.[0] ?? null)}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      disabled={!!folio}
-                      onClick={() => visitorPhotoInput.current?.click()}
-                      className="w-full rounded-md bg-ink px-4 py-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-60"
-                    >
-                      Tomar / seleccionar foto
-                    </button>
-                  </div>
+                  <PhotoUploadField
+                    label="Fotografía del visitante"
+                    companyId={selectedCompanyId}
+                    sessionId={photoSessionId}
+                    fileName="visitante.jpg"
+                    disabled={!!folio || !selectedCompanyId}
+                    resetSignal={photoResetSignal}
+                    onUploadedChange={setVisitorPhotoUploaded}
+                    onPreviewChange={setVisitorPhotoPreview}
+                  />
 
-                  <div>
-                    <p className="mb-2 text-center text-sm text-ink-soft">Fotografía del ID</p>
-                    <input
-                      ref={idPhotoInput}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => setIdPhoto(e.target.files?.[0] ?? null)}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      disabled={!!folio}
-                      onClick={() => idPhotoInput.current?.click()}
-                      className="w-full rounded-md bg-ink px-4 py-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-60"
-                    >
-                      Tomar / seleccionar foto
-                    </button>
-                  </div>
+                  <PhotoUploadField
+                    label="Fotografía del ID"
+                    companyId={selectedCompanyId}
+                    sessionId={photoSessionId}
+                    fileName="ine.jpg"
+                    disabled={!!folio || !selectedCompanyId}
+                    resetSignal={photoResetSignal}
+                    onUploadedChange={setIdPhotoUploaded}
+                  />
                 </div>
               </div>
             </div>
