@@ -248,14 +248,17 @@ export default function CheckIn() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scannerOpen]);
 
-  async function handleScanResult(id: string) {
+  async function handleScanResult(scannedToken: string) {
     setError(null);
     setScanError(null);
 
+    // El QR trae access_token, no el id interno de la fila (ver migración
+    // 0041) — recepción sigue viendo la fila completa vía RLS normal, esto
+    // solo cambia por qué columna se busca.
     const { data, error: lookupError } = await supabase
       .from("visit_preregistrations")
       .select("*")
-      .eq("id", id)
+      .eq("access_token", scannedToken)
       .maybeSingle();
 
     if (lookupError || !data) {

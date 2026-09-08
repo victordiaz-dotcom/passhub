@@ -4,7 +4,6 @@ import QRCodeStyling from "qr-code-styling";
 import { supabase } from "@/integrations/supabase/client";
 
 type Preregistration = {
-  id: string;
   visitor_name: string;
   visitor_company: string | null;
   visitor_phone: string | null;
@@ -40,7 +39,7 @@ function addDays(value: string, days: number) {
 }
 
 export default function PreRegistroConfirmacion() {
-  const { id } = useParams<{ id: string }>();
+  const { token } = useParams<{ token: string }>();
   const [details, setDetails] = useState<Preregistration | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,14 +49,14 @@ export default function PreRegistroConfirmacion() {
   const qrCodeRef = useRef<QRCodeStyling | null>(null);
 
   useEffect(() => {
-    if (!id) {
+    if (!token) {
       setLoading(false);
-      setError("Falta el id del pre-registro en el link.");
+      setError("Falta el código del pre-registro en el link.");
       return;
     }
 
     supabase.functions
-      .invoke("public-preregister", { body: { action: "get", id } })
+      .invoke("public-preregister", { body: { action: "get", token } })
       .then(({ data, error: invokeError }) => {
         setLoading(false);
 
@@ -85,14 +84,14 @@ export default function PreRegistroConfirmacion() {
         setLoading(false);
         setError("No se pudo cargar el pre-registro. Intenta de nuevo.");
       });
-  }, [id]);
+  }, [token]);
 
   useEffect(() => {
-    // Este efecto depende de "loading"/"details" además de "id": la primera
-    // vez que corre (con loading=true) el contenedor del QR todavía no
-    // existe en el DOM (se muestra "Cargando..."), así que hay que
+    // Este efecto depende de "loading"/"details" además de "token": la
+    // primera vez que corre (con loading=true) el contenedor del QR todavía
+    // no existe en el DOM (se muestra "Cargando..."), así que hay que
     // reintentar cuando ya se montó el contenedor real.
-    if (!id || loading || error || !details || !qrContainerRef.current) return;
+    if (!token || loading || error || !details || !qrContainerRef.current) return;
 
     // El canvas se genera a una resolución más alta que su tamaño visual
     // (según el devicePixelRatio de la pantalla) y luego se reduce por CSS:
@@ -106,7 +105,7 @@ export default function PreRegistroConfirmacion() {
         width: renderSize,
         height: renderSize,
         type: "canvas",
-        data: id,
+        data: token,
         margin: Math.round(6 * dpr),
         qrOptions: { errorCorrectionLevel: "H" },
         image: "/logo.png",
@@ -121,7 +120,7 @@ export default function PreRegistroConfirmacion() {
       });
       qrCodeRef.current.append(qrContainerRef.current);
     } else {
-      qrCodeRef.current.update({ data: id });
+      qrCodeRef.current.update({ data: token });
     }
 
     const canvas = qrContainerRef.current.querySelector("canvas");
@@ -129,11 +128,11 @@ export default function PreRegistroConfirmacion() {
       canvas.style.width = `${displaySize}px`;
       canvas.style.height = `${displaySize}px`;
     }
-  }, [id, loading, error, details]);
+  }, [token, loading, error, details]);
 
   function downloadQr() {
-    if (!id) return;
-    qrCodeRef.current?.download({ name: `pre-registro-${id}`, extension: "png" });
+    if (!token) return;
+    qrCodeRef.current?.download({ name: `pre-registro-${token}`, extension: "png" });
   }
 
   function openZoom() {

@@ -104,7 +104,7 @@ export default function PreRegistro() {
       return;
     }
 
-    navigate(`/pre-registro/confirmacion/${data.id}`);
+    navigate(`/pre-registro/confirmacion/${data.token}`);
   }
 
   return (

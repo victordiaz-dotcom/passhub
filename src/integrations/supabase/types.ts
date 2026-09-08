@@ -227,6 +227,7 @@ export type Database = {
       }
       visit_preregistrations: {
         Row: {
+          access_token: string
           company_id: string
           created_at: string
           created_by: string | null
@@ -250,6 +251,7 @@ export type Database = {
           visitor_phone: string | null
         }
         Insert: {
+          access_token?: string
           company_id: string
           created_at?: string
           created_by?: string | null
@@ -273,6 +275,7 @@ export type Database = {
           visitor_phone?: string | null
         }
         Update: {
+          access_token?: string
           company_id?: string
           created_at?: string
           created_by?: string | null

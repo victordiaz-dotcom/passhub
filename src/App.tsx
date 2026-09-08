@@ -37,7 +37,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/cambiar-password" element={<ChangePassword />} />
         <Route path="/pre-registro" element={<PreRegistro />} />
-        <Route path="/pre-registro/confirmacion/:id" element={<PreRegistroConfirmacion />} />
+        <Route path="/pre-registro/confirmacion/:token" element={<PreRegistroConfirmacion />} />
         <Route
           path="/"
           element={

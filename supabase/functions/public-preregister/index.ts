@@ -149,21 +149,24 @@ Deno.serve(async (req) => {
     return jsonResponse({ visitorCompanies });
   }
 
-  // Lookup público de un pre-registro por su id (uuid no adivinable). Solo
-  // se devuelven los campos necesarios para mostrarle al visitante su propio
-  // pase y el QR — nunca una lista ni datos de otros pre-registros.
+  // Lookup público de un pre-registro por su access_token (uuid no
+  // adivinable, distinto del id interno — ver migración 0041: así el id
+  // primario nunca es, por sí solo, una llave de acceso público). Solo se
+  // devuelven los campos necesarios para mostrarle al visitante su propio
+  // pase y el QR — nunca una lista ni datos de otros pre-registros, y nunca
+  // el id interno.
   if (action === "get") {
-    const id = body.id;
-    if (!id || typeof id !== "string") {
-      return jsonResponse({ error: "Falta id." }, 400);
+    const token = body.token;
+    if (!token || typeof token !== "string") {
+      return jsonResponse({ error: "Falta token." }, 400);
     }
 
     const { data, error } = await adminClient
       .from("visit_preregistrations")
       .select(
-        "id, visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name)"
+        "visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name)"
       )
-      .eq("id", id)
+      .eq("access_token", token)
       .maybeSingle();
 
     if (error || !data) {
@@ -294,12 +297,12 @@ Deno.serve(async (req) => {
       vehicle_color: hasVehicle === "si" ? vehicleColor : null,
       vehicle_model: hasVehicle === "si" ? vehicleModel : null,
     })
-    .select("id")
+    .select("access_token")
     .single();
 
   if (insertError || !created) {
     return jsonResponse({ error: "No se pudo crear el pre-registro." }, 400);
   }
 
-  return jsonResponse({ id: created.id });
+  return jsonResponse({ token: created.access_token });
 });
