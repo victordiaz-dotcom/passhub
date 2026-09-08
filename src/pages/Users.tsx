@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ROLE_LABELS } from "@/lib/roles";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
@@ -102,7 +103,7 @@ export default function Users() {
     });
 
     if (invokeError || data?.error) {
-      setError(data?.error ?? "No se pudo crear la cuenta. Intenta de nuevo.");
+      setError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo crear la cuenta. Intenta de nuevo.")));
       return false;
     }
 
@@ -208,7 +209,7 @@ export default function Users() {
     setResettingId(null);
 
     if (invokeError || data?.error) {
-      setResetError(data?.error ?? "No se pudo restablecer la contraseña.");
+      setResetError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo restablecer la contraseña.")));
       return;
     }
 
@@ -241,7 +242,7 @@ export default function Users() {
     setDeletingId(null);
 
     if (invokeError || data?.error) {
-      setDeleteError(data?.error ?? "No se pudo eliminar la cuenta. Intenta de nuevo.");
+      setDeleteError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo eliminar la cuenta. Intenta de nuevo.")));
       return;
     }
 

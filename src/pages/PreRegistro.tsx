@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 
 type Company = { id: string; name: string };
 type Division = { id: string; company_id: string; name: string };
@@ -100,7 +101,7 @@ export default function PreRegistro() {
     setSubmitting(false);
 
     if (invokeError || data?.error) {
-      setError(data?.error ?? "No se pudo crear el pre-registro. Intenta de nuevo.");
+      setError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo crear el pre-registro. Intenta de nuevo.")));
       return;
     }
 

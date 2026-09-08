@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Tables<"employees"> & { companies: Pick<Tables<"companies">, "name"> | null };
@@ -39,11 +39,7 @@ export default function Employees() {
     setSyncing(false);
 
     if (invokeError) {
-      let message = "No se pudo sincronizar. Intenta de nuevo.";
-      if (invokeError instanceof FunctionsHttpError) {
-        const body = await invokeError.context.json().catch(() => null);
-        if (body?.error) message = body.error;
-      }
+      const message = await edgeFunctionErrorMessage(invokeError, "No se pudo sincronizar. Intenta de nuevo.");
       setSyncMessage({ text: message, isError: true });
       return;
     }
