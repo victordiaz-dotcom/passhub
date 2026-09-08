@@ -49,7 +49,7 @@ export default function App() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute allowedRoles={["admin"]}>
+            <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
               <Layout>
                 <Dashboard />
               </Layout>
@@ -59,7 +59,7 @@ export default function App() {
         <Route
           path="/historial"
           element={
-            <ProtectedRoute allowedRoles={["admin", "recepcion"]}>
+            <ProtectedRoute allowedRoles={["admin", "recepcion", "superadmin"]}>
               <Layout>
                 <Historial />
               </Layout>
@@ -69,7 +69,7 @@ export default function App() {
         <Route
           path="/employees"
           element={
-            <ProtectedRoute allowedRoles={["admin"]}>
+            <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
               <Layout>
                 <Employees />
               </Layout>
@@ -79,7 +79,7 @@ export default function App() {
         <Route
           path="/users"
           element={
-            <ProtectedRoute allowedRoles={["admin"]}>
+            <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
               <Layout>
                 <Users />
               </Layout>

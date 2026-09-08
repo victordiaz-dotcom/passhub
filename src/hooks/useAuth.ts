@@ -54,7 +54,11 @@ export function useAuth() {
     roles,
     companyId: profile?.company_id ?? null,
     mustChangePassword: profile?.must_change_password ?? false,
-    isAdmin: roles.includes("admin"),
+    // superadmin siempre cuenta como admin: RLS/Edge Functions ya lo tratan
+    // así (has_role(admin) OR has_role(superadmin)), esto lo alinea del
+    // lado del frontend — antes una cuenta con SOLO el rol superadmin
+    // quedaba fuera de las rutas/menú/cierre de sesión automático de admin.
+    isAdmin: roles.includes("admin") || roles.includes("superadmin"),
     isRecepcion: roles.includes("recepcion"),
     isSuperadmin: roles.includes("superadmin"),
     isGuardia: roles.includes("guardia"),
