@@ -46,6 +46,33 @@ function generateTempPassword(length = 14) {
   return chars.join("");
 }
 
+// Equivalente a "Leaked Password Protection" de Supabase Auth, que en este
+// proyecto no se puede activar desde el dashboard por estar en plan Free.
+// Solo aplica a contraseñas que escribe el admin (las generadas con
+// generateTempPassword son de alta entropía y nunca aparecerán en una
+// filtración, así que no vale la pena la llamada externa para esas).
+// K-anonimato: solo se manda el prefijo de 5 caracteres del hash SHA-1,
+// nunca la contraseña ni el hash completo. Fail-open si la API no responde
+// — no se bloquea la creación de cuentas por una caída de un tercero.
+async function isPasswordPwned(password: string): Promise<boolean> {
+  const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(password));
+  const hashHex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+  const prefix = hashHex.slice(0, 5);
+  const suffix = hashHex.slice(5);
+
+  try {
+    const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+    if (!res.ok) return false;
+    const text = await res.text();
+    return text.split("\n").some((line) => line.split(":")[0].trim() === suffix);
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -53,6 +80,10 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") {
     return jsonResponse({ error: "Método no permitido." }, 405);
+  }
+
+  if (Number(req.headers.get("content-length") ?? 0) > 100_000) {
+    return jsonResponse({ error: "Solicitud demasiado grande." }, 413);
   }
 
   const authHeader = req.headers.get("Authorization");
@@ -130,6 +161,13 @@ Deno.serve(async (req) => {
   // forma, más abajo).
   if (password !== undefined && password.trim().length < 8) {
     return jsonResponse({ error: "La contraseña debe tener al menos 8 caracteres." }, 400);
+  }
+
+  if (password !== undefined && (await isPasswordPwned(password.trim()))) {
+    return jsonResponse(
+      { error: "Esa contraseña apareció en una filtración de datos conocida. Elige otra." },
+      400
+    );
   }
 
   const tempPassword = password?.trim() || generateTempPassword();

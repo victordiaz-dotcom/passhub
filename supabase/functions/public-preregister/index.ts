@@ -18,6 +18,46 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const MAX_BODY_BYTES = 100_000;
+
+function getClientIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim();
+  return req.headers.get("cf-connecting-ip") ?? "unknown";
+}
+
+// Sin tabla de rate limiting compartida entre funciones (cada Edge Function
+// se despliega por separado): se repite este helper corto en cada función
+// pública sin JWT. Ventana fija por (bucket, identifier) sobre
+// public.edge_rate_limits — se autolimpia en cada chequeo, así que no
+// necesita ningún cron aparte.
+async function checkRateLimit(
+  adminClient: ReturnType<typeof createClient>,
+  bucket: string,
+  identifier: string,
+  limit: number,
+  windowMinutes: number
+): Promise<boolean> {
+  const windowStart = new Date(Date.now() - windowMinutes * 60_000).toISOString();
+  await adminClient
+    .from("edge_rate_limits")
+    .delete()
+    .eq("bucket", bucket)
+    .eq("identifier", identifier)
+    .lt("created_at", windowStart);
+
+  const { count } = await adminClient
+    .from("edge_rate_limits")
+    .select("id", { count: "exact", head: true })
+    .eq("bucket", bucket)
+    .eq("identifier", identifier);
+
+  if ((count ?? 0) >= limit) return false;
+
+  await adminClient.from("edge_rate_limits").insert({ bucket, identifier });
+  return true;
+}
+
 function addDaysIso(value: string, days: number) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day + days));
@@ -33,11 +73,24 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Método no permitido." }, 405);
   }
 
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BODY_BYTES) {
+    return jsonResponse({ error: "Solicitud demasiado grande." }, 413);
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   // Service role: este endpoint es público (sin JWT), así que la única
   // manera de leer/escribir estas tablas es con este cliente.
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+  // 30 solicitudes / 5 min por IP: un visitante real dispara varias en una
+  // sola sesión de formulario (companies/divisions/visitTypes/create), esto
+  // solo corta un flood.
+  const allowed = await checkRateLimit(adminClient, "public-preregister", getClientIp(req), 30, 5);
+  if (!allowed) {
+    return jsonResponse({ error: "Demasiadas solicitudes. Espera unos minutos." }, 429);
+  }
 
   let body: Record<string, unknown>;
   try {

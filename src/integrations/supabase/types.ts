@@ -99,6 +99,27 @@ export type Database = {
           },
         ]
       }
+      edge_rate_limits: {
+        Row: {
+          bucket: string
+          created_at: string
+          id: number
+          identifier: string
+        }
+        Insert: {
+          bucket: string
+          created_at?: string
+          id?: never
+          identifier: string
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          id?: never
+          identifier?: string
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           active: boolean
@@ -490,7 +511,6 @@ export type Database = {
           weekday: number
         }[]
       }
-      current_company_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

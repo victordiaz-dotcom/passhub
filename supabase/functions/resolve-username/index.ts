@@ -15,6 +15,45 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 const GENERIC_ERROR = { error: "Usuario o contraseña incorrectos." };
+const MAX_BODY_BYTES = 100_000;
+
+function getClientIp(req: Request): string {
+  const fwd = req.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim();
+  return req.headers.get("cf-connecting-ip") ?? "unknown";
+}
+
+// Sin tabla de rate limiting compartida entre funciones (cada Edge Function
+// se despliega por separado): se repite este helper corto en cada función
+// pública sin JWT. Ventana fija por (bucket, identifier) sobre
+// public.edge_rate_limits — se autolimpia en cada chequeo, así que no
+// necesita ningún cron aparte.
+async function checkRateLimit(
+  adminClient: ReturnType<typeof createClient>,
+  bucket: string,
+  identifier: string,
+  limit: number,
+  windowMinutes: number
+): Promise<boolean> {
+  const windowStart = new Date(Date.now() - windowMinutes * 60_000).toISOString();
+  await adminClient
+    .from("edge_rate_limits")
+    .delete()
+    .eq("bucket", bucket)
+    .eq("identifier", identifier)
+    .lt("created_at", windowStart);
+
+  const { count } = await adminClient
+    .from("edge_rate_limits")
+    .select("id", { count: "exact", head: true })
+    .eq("bucket", bucket)
+    .eq("identifier", identifier);
+
+  if ((count ?? 0) >= limit) return false;
+
+  await adminClient.from("edge_rate_limits").insert({ bucket, identifier });
+  return true;
+}
 
 // Sin JWT a propósito: se llama ANTES de iniciar sesión, para autenticar por
 // "username" (Supabase Auth solo sabe autenticar por correo). A diferencia
@@ -32,9 +71,22 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Método no permitido." }, 405);
   }
 
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BODY_BYTES) {
+    return jsonResponse({ error: "Solicitud demasiado grande." }, 413);
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+  // 5 intentos / 15 min por IP: cubre tanto fuerza bruta de contraseña como
+  // el intento de volver a enumerar usernames a punta de volumen.
+  const allowed = await checkRateLimit(adminClient, "resolve-username", getClientIp(req), 5, 15);
+  if (!allowed) {
+    return jsonResponse({ error: "Demasiados intentos. Espera unos minutos." }, 429);
+  }
 
   let body: { username?: string; password?: string };
   try {
@@ -49,7 +101,6 @@ Deno.serve(async (req) => {
     return jsonResponse(GENERIC_ERROR, 400);
   }
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const { data: profile } = await adminClient
     .from("profiles")
     .select("email")

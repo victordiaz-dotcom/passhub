@@ -37,6 +37,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Método no permitido." }, 405);
   }
 
+  if (Number(req.headers.get("content-length") ?? 0) > 100_000) {
+    return jsonResponse({ error: "Solicitud demasiado grande." }, 413);
+  }
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return jsonResponse({ error: "No autorizado." }, 401);
