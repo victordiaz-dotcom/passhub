@@ -62,14 +62,17 @@ Deno.serve(async (req) => {
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: callerRole } = await adminClient
+  // superadmin también puede sincronizar (igual que create-user/reset-user-password
+  // /delete-user y el resto de RLS/funciones — ver migraciones 0042/0044).
+  const { data: callerRoleRows } = await adminClient
     .from("user_roles")
     .select("role")
-    .eq("user_id", caller.id)
-    .eq("role", "admin")
-    .maybeSingle();
+    .eq("user_id", caller.id);
 
-  if (!callerRole) {
+  const callerRoles = (callerRoleRows ?? []).map((r) => r.role);
+  const callerIsAdmin = callerRoles.includes("admin") || callerRoles.includes("superadmin");
+
+  if (!callerIsAdmin) {
     return jsonResponse({ error: "Solo un administrador puede sincronizar empleados." }, 403);
   }
 
