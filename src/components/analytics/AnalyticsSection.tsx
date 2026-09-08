@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 // rgb(var(--token)) en vez de un hex fijo: como son variables CSS vivas, el
 // grid/los ejes/el tooltip siguen el tema activo (claro/oscuro) solos, sin
@@ -35,13 +36,14 @@ type ChartColors = {
   preregPendiente: string;
   preregUsada: string;
   preregVencida: string;
-  preregCancelada: string;
 };
 
 // Un color por gráfica (y, dentro de "Estado de pre-registros", uno por
 // estado) — cambiar el de una no toca las demás. Mismos valores que ya
-// tenía la app (tokens de tailwind.config.ts) como punto de partida; el
-// usuario puede personalizarlos, quedan guardados por navegador.
+// tenía la app (tokens de tailwind.config.ts) como punto de partida. Se
+// guardan en la tabla analytics_chart_colors, una fila por cuenta (RLS
+// restringe cada fila a su propio dueño) — nunca en localStorage, para que
+// la personalización viaje con la cuenta y no con el navegador/dispositivo.
 const DEFAULT_CHART_COLORS: ChartColors = {
   entradasPorMes: "#1873dc",
   porHora: "#1873dc",
@@ -51,33 +53,25 @@ const DEFAULT_CHART_COLORS: ChartColors = {
   preregPendiente: "#ff9800",
   preregUsada: "#1873dc",
   preregVencida: "#f44336",
-  preregCancelada: "#6c757d",
 };
 
-const CHART_COLORS_STORAGE_KEY = "passhub_analytics_chart_colors_v2";
-
-function loadStoredChartColors(): ChartColors {
-  try {
-    const raw = localStorage.getItem(CHART_COLORS_STORAGE_KEY);
-    if (!raw) return DEFAULT_CHART_COLORS;
-    return { ...DEFAULT_CHART_COLORS, ...JSON.parse(raw) };
-  } catch {
-    return DEFAULT_CHART_COLORS;
-  }
-}
+// Llave vieja de localStorage (versión anterior, por navegador) — ya no se
+// lee, solo se limpia una vez si quedó de antes.
+const LEGACY_LOCALSTORAGE_KEY = "passhub_analytics_chart_colors_v2";
 
 const PREREG_COLOR_FIELDS: { key: keyof ChartColors; label: string }[] = [
   { key: "preregPendiente", label: "Pendiente" },
   { key: "preregUsada", label: "Usada" },
   { key: "preregVencida", label: "Vencida" },
-  { key: "preregCancelada", label: "Cancelada" },
 ];
 
+// "cancelada" no se muestra: no existe ninguna acción en la app que
+// marque un pre-registro como cancelado, así que siempre saldría en cero
+// (ver migración 0045).
 const STATUS_LABELS: Record<string, string> = {
   pendiente: "Pendiente",
   usada: "Usada (check-in)",
   vencida: "Vencida",
-  cancelada: "Cancelada",
 };
 
 const WEEKDAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -511,7 +505,6 @@ function PreregStatusChart({
     pendiente: colors.preregPendiente,
     usada: colors.preregUsada,
     vencida: colors.preregVencida,
-    cancelada: colors.preregCancelada,
   };
 
   useEffect(() => {
@@ -714,28 +707,61 @@ function HourChart({ color, onColorChange }: { color: string; onColorChange: (v:
 }
 
 export function AnalyticsSection() {
-  const [chartColors, setChartColors] = useState<ChartColors>(loadStoredChartColors);
+  const { session } = useAuth();
+  const userId = session?.user.id;
+  const [chartColors, setChartColors] = useState<ChartColors>(DEFAULT_CHART_COLORS);
+
+  useEffect(() => {
+    // Limpieza de la versión vieja (localStorage, por navegador) — ya no se
+    // lee de ahí, esto solo evita dejar basura suelta.
+    try {
+      localStorage.removeItem(LEGACY_LOCALSTORAGE_KEY);
+    } catch {
+      // no pasa nada si falla, no es data que se vaya a volver a leer
+    }
+
+    if (!userId) return;
+
+    supabase
+      .from("analytics_chart_colors")
+      .select("colors")
+      .eq("user_id", userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error);
+          return;
+        }
+        if (data?.colors) {
+          setChartColors({ ...DEFAULT_CHART_COLORS, ...(data.colors as Partial<ChartColors>) });
+        }
+      });
+  }, [userId]);
 
   function updateColor(key: keyof ChartColors, value: string) {
+    if (!userId) return;
     setChartColors((prev) => {
       const next = { ...prev, [key]: value };
-      try {
-        localStorage.setItem(CHART_COLORS_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // localStorage puede fallar (modo privado, cuota); el cambio se
-        // sigue aplicando en esta sesión aunque no persista.
-      }
+      supabase
+        .from("analytics_chart_colors")
+        .upsert({ user_id: userId, colors: next, updated_at: new Date().toISOString() })
+        .then(({ error }) => {
+          if (error) console.error(error);
+        });
       return next;
     });
   }
 
   function resetColors() {
     setChartColors(DEFAULT_CHART_COLORS);
-    try {
-      localStorage.removeItem(CHART_COLORS_STORAGE_KEY);
-    } catch {
-      // ver comentario en updateColor
-    }
+    if (!userId) return;
+    supabase
+      .from("analytics_chart_colors")
+      .delete()
+      .eq("user_id", userId)
+      .then(({ error }) => {
+        if (error) console.error(error);
+      });
   }
 
   return (

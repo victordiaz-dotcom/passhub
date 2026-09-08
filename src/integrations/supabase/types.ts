@@ -14,6 +14,32 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_chart_colors: {
+        Row: {
+          colors: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          colors?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          colors?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_chart_colors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -474,7 +500,7 @@ export type Database = {
       analytics_prereg_status_breakdown: {
         Args: { p_end: string; p_start: string }
         Returns: {
-          status: Database["public"]["Enums"]["prereg_status"]
+          status: string
           status_count: number
         }[]
       }
