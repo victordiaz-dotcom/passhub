@@ -1,0 +1,80 @@
+/* ==========================================================================
+   PassHub — Design System / Tokens
+   Fuente de verdad real: tailwind.config.ts + src/index.css del proyecto.
+   Exportado como referencia de estilos, no se usa directamente en la app.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Colores — modo claro (default)
+   -------------------------------------------------------------------------- */
+:root {
+  --ink: #1d1d1f;          /* texto principal */
+  --ink-soft: #6c757d;     /* texto secundario / muted */
+  --paper: #f4f6f9;        /* fondo de página */
+  --card: #ffffff;         /* fondo de tarjetas/superficies */
+  --line: #e9e9e9;         /* bordes, divisores */
+
+  --accent: #1873dc;       /* color de marca — botones primarios, links, foco */
+  --accent-tint: #e6f1fc;  /* fondo tenue para badges/pills sobre accent */
+  --accent-dark: #0e4381;  /* texto sobre accent-tint, hover de botones accent */
+
+  --warn: #ff9800;         /* advertencia */
+  --warn-tint: #fdf3dc;    /* fondo tenue de advertencia */
+
+  --danger: #f44336;       /* error / acción destructiva */
+}
+
+/* --------------------------------------------------------------------------
+   Colores — modo oscuro
+   Set propio (no inversión automática del modo claro). accent-dark es MÁS
+   claro que accent aquí a propósito (hover que aclara, no oscurece).
+   -------------------------------------------------------------------------- */
+.dark {
+  --ink: #f3f5f7;
+  --ink-soft: #9aa3af;
+  --paper: #12161c;
+  --card: #1a1f27;
+  --line: #2b313b;
+
+  --accent: #4896f2;       /* oscurecido desde #4c9eff para 3:1 con texto blanco */
+  --accent-tint: #1b2a40;
+  --accent-dark: #8ac0ff;
+
+  --warn: #ffa733;
+  --warn-tint: #3a2a12;
+
+  --danger: #f26659;       /* oscurecido desde #ff6b5e para 3:1 con texto blanco */
+}
+
+/* --------------------------------------------------------------------------
+   Tipografía
+   -------------------------------------------------------------------------- */
+:root {
+  --font-sans: "Inter", sans-serif;      /* texto general (body) */
+  --font-display: "Montserrat", sans-serif; /* títulos, marca, énfasis */
+  --tracking-wide: 0.06em;               /* usado en títulos en mayúsculas */
+}
+
+/* Google Fonts cargadas en index.html:
+   family=Inter:wght@400;500;600;700
+   family=Montserrat:wght@400;500;600;700 */
+
+/* --------------------------------------------------------------------------
+   Referencia rápida: nombre de token Tailwind → variable → uso típico
+   -------------------------------------------------------------------------- */
+/*
+  ink          → var(--ink)          → text-ink, texto principal
+  ink-soft     → var(--ink-soft)     → text-ink-soft, texto secundario/labels
+  paper        → var(--paper)        → bg-paper, fondo de página
+  card         → var(--card)         → bg-card, tarjetas/formularios
+  line         → var(--line)         → border-line, bg-line, divisores
+  accent       → var(--accent)       → bg-accent, text-accent, border-accent
+  accent-tint  → var(--accent-tint)  → bg-accent-tint, fondos de badge
+  accent-dark  → var(--accent-dark)  → text-accent-dark, hover de bg-accent
+  warn         → var(--warn)         → bordes/texto de advertencia
+  warn-tint    → var(--warn-tint)    → fondo tenue de advertencia
+  danger       → var(--danger)       → bg-danger, text-danger, errores
+
+  font-display → var(--font-display) → font-display (títulos, uppercase + tracking-wide)
+  font-sans    → var(--font-sans)    → default del body
+*/
