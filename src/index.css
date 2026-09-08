@@ -23,17 +23,25 @@
 }
 
 .dark {
-  --ink: 238 241 246; /* #eef1f6 */
-  --ink-soft: 154 164 178; /* #9aa4b2 */
-  --paper: 20 23 28; /* #14171c */
-  --card: 29 33 41; /* #1d2129 */
-  --line: 43 48 58; /* #2b303a */
-  --accent: 59 130 246; /* #3b82f6 */
-  --accent-tint: 20 41 67; /* #142943 */
-  --accent-dark: 125 182 251; /* #7db6fb */
-  --warn: 255 167 38; /* #ffa726 */
+  /* Set de tokens propio de modo oscuro (no una inversión automática de
+     los claros) — paleta dada por Victor el 2026-09-08. accent y danger
+     se oscurecieron ~5-7% respecto a lo dado (#4C9EFF/#FF6B5E) para
+     cruzar 3:1 de contraste con texto blanco en botones sólidos; el
+     resto queda exactamente como se definió. accent-dark es MÁS claro
+     que accent aquí a propósito (hover que aclara, no oscurece) — ver
+     comentario en los usos de bg-accent-dark/text-accent-dark, ninguno
+     asume que sea siempre más oscuro. */
+  --ink: 243 245 247; /* #f3f5f7 */
+  --ink-soft: 154 163 175; /* #9aa3af */
+  --paper: 18 22 28; /* #12161c */
+  --card: 26 31 39; /* #1a1f27 */
+  --line: 43 49 59; /* #2b313b */
+  --accent: 72 150 242; /* #4896f2 (oscurecido desde #4c9eff, ver nota arriba) */
+  --accent-tint: 27 42 64; /* #1b2a40 */
+  --accent-dark: 138 192 255; /* #8ac0ff */
+  --warn: 255 167 51; /* #ffa733 */
   --warn-tint: 58 42 18; /* #3a2a12 */
-  --danger: 239 83 80; /* #ef5350 */
+  --danger: 242 102 89; /* #f26659 (oscurecido desde #ff6b5e, ver nota arriba) */
 }
 
 @layer base {
