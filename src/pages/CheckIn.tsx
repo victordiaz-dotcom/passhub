@@ -489,7 +489,7 @@ export default function CheckIn() {
                       <button
                         type="button"
                         onClick={() => setCheckoutTarget(visit)}
-                        className="text-sm font-medium text-accent hover:text-accent-dark"
+                        className="whitespace-nowrap text-sm font-medium text-accent hover:text-accent-dark"
                       >
                         Registrar salida
                       </button>
