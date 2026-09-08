@@ -310,7 +310,7 @@ export default function Users() {
               disabled={isEditing}
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:bg-paper disabled:text-ink-soft"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:bg-paper disabled:text-ink-soft"
             />
             {isEditing && (
               <p className="mt-1 text-xs text-ink-soft">El correo no se puede editar aquí.</p>
