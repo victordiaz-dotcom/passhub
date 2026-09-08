@@ -369,7 +369,7 @@ export function AnalyticsSection() {
           <button
             type="button"
             onClick={resetChartColors}
-            className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink"
+            className="rounded-md border border-line bg-card px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink"
           >
             Restaurar colores por defecto
           </button>

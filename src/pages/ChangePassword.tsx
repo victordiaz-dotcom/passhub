@@ -81,7 +81,7 @@ export default function ChangePassword() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-line px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -97,7 +97,7 @@ export default function ChangePassword() {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-md border border-line px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 

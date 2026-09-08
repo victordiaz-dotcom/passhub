@@ -295,7 +295,7 @@ export default function Users() {
               required
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -327,7 +327,7 @@ export default function Users() {
               required
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().trim() })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
             <p className="mt-1 text-xs text-ink-soft">Con esto (o el correo) inicia sesión.</p>
           </div>
@@ -412,7 +412,7 @@ export default function Users() {
                   placeholder="Mínimo 8 caracteres"
                   value={form.customPassword}
                   onChange={(e) => setForm({ ...form, customPassword: e.target.value })}
-                  className="mt-2 w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                  className="mt-2 w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
                 />
               )}
             </div>
@@ -599,7 +599,7 @@ export default function Users() {
                 placeholder="Mínimo 8 caracteres"
                 value={resetCustomPassword}
                 onChange={(e) => setResetCustomPassword(e.target.value)}
-                className="mt-3 w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                className="mt-3 w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
               />
             )}
 

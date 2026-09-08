@@ -128,7 +128,7 @@ export default function PreRegistro() {
               required
               value={form.visitorName}
               onChange={(e) => setForm({ ...form, visitorName: e.target.value })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -142,7 +142,7 @@ export default function PreRegistro() {
               suggestions={visitorCompanySuggestions}
               value={form.visitorCompany}
               onChange={(visitorCompany) => setForm({ ...form, visitorCompany })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -156,7 +156,7 @@ export default function PreRegistro() {
               required
               value={form.visitorPhone}
               onChange={(e) => setForm({ ...form, visitorPhone: e.target.value })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -170,7 +170,7 @@ export default function PreRegistro() {
               required
               value={form.visitorEmail}
               onChange={(e) => setForm({ ...form, visitorEmail: e.target.value })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -230,7 +230,7 @@ export default function PreRegistro() {
                 required
                 value={form.customVisitType}
                 onChange={(e) => setForm({ ...form, customVisitType: e.target.value })}
-                className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
               />
             </div>
           )}
@@ -274,7 +274,7 @@ export default function PreRegistro() {
                   required
                   value={form.vehiclePlate}
                   onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
-                  className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                  className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
                 />
               </div>
               <div>
@@ -287,7 +287,7 @@ export default function PreRegistro() {
                   required
                   value={form.vehicleColor}
                   onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
-                  className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                  className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
                 />
               </div>
               <div>
@@ -300,7 +300,7 @@ export default function PreRegistro() {
                   required
                   value={form.vehicleModel}
                   onChange={(e) => setForm({ ...form, vehicleModel: e.target.value })}
-                  className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                  className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
                 />
               </div>
             </div>
@@ -340,7 +340,7 @@ export default function PreRegistro() {
               required
               value={form.reason}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -356,7 +356,7 @@ export default function PreRegistro() {
                 min={todayIso()}
                 value={form.visitDate}
                 onChange={(e) => setForm({ ...form, visitDate: e.target.value })}
-                className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
               />
             </div>
 
@@ -370,7 +370,7 @@ export default function PreRegistro() {
                 required
                 value={form.visitTime}
                 onChange={(e) => setForm({ ...form, visitTime: e.target.value })}
-                className="w-full rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
               />
             </div>
           </div>

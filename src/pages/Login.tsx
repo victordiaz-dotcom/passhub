@@ -76,7 +76,7 @@ export default function Login() {
               autoComplete="username"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full rounded-md border border-line px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 
@@ -91,7 +91,7 @@ export default function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-line px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
             />
           </div>
 

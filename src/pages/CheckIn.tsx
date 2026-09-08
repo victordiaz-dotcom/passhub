@@ -27,7 +27,7 @@ type InsideVisit = Pick<
 const QR_REGION_ID = "qr-reader-region";
 
 const inputClass =
-  "w-full rounded-md border border-line px-3 py-2 text-sm text-ink invalid:border-danger focus:border-accent focus:outline-none disabled:bg-paper disabled:opacity-60";
+  "w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink invalid:border-danger focus:border-accent focus:outline-none disabled:bg-paper disabled:opacity-60";
 const plainSelectClass =
   "w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:bg-paper disabled:opacity-60";
 const invalidSelectClass =
