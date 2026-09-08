@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { APP_VERSION } from "@/lib/version";
+import { ROLE_LABELS } from "@/lib/roles";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 // font-medium siempre presente (no solo en isActive): si el peso de la
@@ -10,8 +11,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `text-sm font-medium ${isActive ? "text-white" : "text-white/70 hover:text-white"}`;
 
 export function AppHeader() {
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, roles, isAdmin, signOut } = useAuth();
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? "Usuario";
+  const roleLabel = roles.map((role) => ROLE_LABELS[role] ?? role).join(", ");
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 bg-ink text-white">
@@ -27,6 +29,7 @@ export function AppHeader() {
           <ThemeToggle />
           <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
             {firstName}
+            {roleLabel && <span className="text-white/50"> · {roleLabel}</span>}
           </span>
           <button
             type="button"

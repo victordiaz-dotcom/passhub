@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ROLE_LABELS } from "@/lib/roles";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
@@ -20,12 +21,6 @@ const emptyForm = {
   customPassword: "",
 };
 
-const ROLE_LABELS: Record<string, string> = {
-  recepcion: "Recepción",
-  admin: "Admin",
-  superadmin: "Super Admin",
-  guardia: "Guardia",
-};
 
 export default function Users() {
   const { session, isSuperadmin } = useAuth();
