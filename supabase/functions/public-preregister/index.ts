@@ -84,14 +84,6 @@ Deno.serve(async (req) => {
   // manera de leer/escribir estas tablas es con este cliente.
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // 30 solicitudes / 5 min por IP: un visitante real dispara varias en una
-  // sola sesión de formulario (companies/divisions/visitTypes/create), esto
-  // solo corta un flood.
-  const allowed = await checkRateLimit(adminClient, "public-preregister", getClientIp(req), 30, 5);
-  if (!allowed) {
-    return jsonResponse({ error: "Demasiadas solicitudes. Espera unos minutos." }, 429);
-  }
-
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -100,6 +92,16 @@ Deno.serve(async (req) => {
   }
 
   const action = body.action;
+
+  // 30 solicitudes / 5 min por IP: un visitante real dispara varias en una
+  // sola sesión de formulario (companies/divisions/visitTypes/create). "get"
+  // (la pantalla de confirmación, que se puede recargar varias veces) tiene
+  // su propio cupo separado, para que no compita con el del formulario.
+  const rateLimitBucket = action === "get" ? "public-preregister-get" : "public-preregister";
+  const allowed = await checkRateLimit(adminClient, rateLimitBucket, getClientIp(req), 30, 5);
+  if (!allowed) {
+    return jsonResponse({ error: "Demasiadas solicitudes. Espera unos minutos." }, 429);
+  }
 
   // Lookups de solo lectura para poblar el formulario público (nombres de
   // empresa no son datos sensibles, pero las tablas no tienen RLS para
