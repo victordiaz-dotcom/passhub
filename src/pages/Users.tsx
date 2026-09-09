@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ROLE_LABELS } from "@/lib/roles";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import type { Tables } from "@/integrations/supabase/types";
@@ -45,9 +44,8 @@ export default function Users() {
   const [resetCustomPassword, setResetCustomPassword] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
 
-  const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editingOriginalEmail, setEditingOriginalEmail] = useState("");
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const isEditing = editingId !== null;
 
@@ -73,6 +71,7 @@ export default function Users() {
   function startEdit(account: Account) {
     setError(null);
     setEditingId(account.id);
+    setEditingOriginalEmail(account.email);
     setForm({
       email: account.email,
       username: account.username,
@@ -113,6 +112,17 @@ export default function Users() {
 
   async function handleUpdate() {
     if (!editingId) return false;
+
+    if (form.email !== editingOriginalEmail) {
+      const { data, error: invokeError } = await supabase.functions.invoke("update-user-email", {
+        body: { userId: editingId, email: form.email },
+      });
+
+      if (invokeError || data?.error) {
+        setError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo actualizar el correo.")));
+        return false;
+      }
+    }
 
     const { error: profileError } = await supabase
       .from("profiles")
@@ -225,28 +235,19 @@ export default function Users() {
       if (!confirmed) return;
     }
 
-    await supabase.from("profiles").update({ active: !account.active }).eq("id", account.id);
-    loadAccounts();
-  }
+    setTogglingId(account.id);
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-
-    setDeleteError(null);
-    setDeletingId(deleteTarget.id);
-
-    const { data, error: invokeError } = await supabase.functions.invoke("delete-user", {
-      body: { userId: deleteTarget.id },
+    const { data, error: invokeError } = await supabase.functions.invoke("set-account-active", {
+      body: { userId: account.id, active: !account.active },
     });
 
-    setDeletingId(null);
+    setTogglingId(null);
 
     if (invokeError || data?.error) {
-      setDeleteError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo eliminar la cuenta. Intenta de nuevo.")));
+      setError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo actualizar el estado de la cuenta.")));
       return;
     }
 
-    setDeleteTarget(null);
     loadAccounts();
   }
 
@@ -303,13 +304,14 @@ export default function Users() {
               id="email"
               type="email"
               required
-              disabled={isEditing}
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:bg-paper disabled:text-ink-soft"
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             />
-            {isEditing && (
-              <p className="mt-1 text-xs text-ink-soft">El correo no se puede editar aquí.</p>
+            {isEditing && form.email !== editingOriginalEmail && (
+              <p className="mt-1 text-xs text-ink-soft">
+                Se actualizará el correo de acceso de esta cuenta al guardar.
+              </p>
             )}
           </div>
 
@@ -439,8 +441,6 @@ export default function Users() {
 
       <h2 className="mb-4 font-display text-base font-bold text-ink">Cuentas registradas</h2>
 
-      {deleteError && <p className="mb-3 text-sm text-danger">{deleteError}</p>}
-
       <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
@@ -483,7 +483,7 @@ export default function Users() {
                         account.active ? "bg-accent-tint text-accent-dark" : "bg-line text-ink-soft"
                       }`}
                     >
-                      {account.active ? "Activo" : "Inactivo"}
+                      {account.active ? "Activo" : "Suspendido"}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3">
@@ -507,33 +507,25 @@ export default function Users() {
                           {resettingId === account.id ? "Restableciendo..." : "Restablecer contraseña"}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        disabled={isSelf}
-                        title={
-                          isSelf
-                            ? "No puedes desactivar tu propia cuenta."
-                            : account.active
-                              ? "Bloquea el acceso de la persona. No borra su cuenta ni su historial."
-                              : "Restaura su acceso."
-                        }
-                        onClick={() => toggleActive(account)}
-                        className="text-sm font-medium text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {account.active ? "Desactivar" : "Activar"}
-                      </button>
                       {isSuperadmin && (
                         <button
                           type="button"
-                          disabled={isSelf || deletingId === account.id}
-                          title={isSelf ? "No puedes eliminar tu propia cuenta." : undefined}
-                          onClick={() => {
-                            setDeleteTarget(account);
-                            setDeleteError(null);
-                          }}
-                          className="text-sm font-medium text-danger hover:text-danger/80 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={isSelf || togglingId === account.id}
+                          title={
+                            isSelf
+                              ? "No puedes desactivar tu propia cuenta."
+                              : account.active
+                                ? "Bloquea el acceso de la persona. No borra su cuenta ni su historial."
+                                : "Restaura su acceso."
+                          }
+                          onClick={() => toggleActive(account)}
+                          className="text-sm font-medium text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          Eliminar cuenta
+                          {togglingId === account.id
+                            ? "Actualizando..."
+                            : account.active
+                              ? "Desactivar"
+                              : "Activar"}
                         </button>
                       )}
                     </div>
@@ -621,16 +613,6 @@ export default function Users() {
           </div>
         </div>
       )}
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        title={`¿Eliminar la cuenta de ${deleteTarget?.full_name ?? "esta persona"}?`}
-        message="Esta acción no se puede deshacer: se elimina el acceso por completo, incluida la cuenta de inicio de sesión."
-        confirmLabel="Eliminar"
-        variant="danger"
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
     </div>
   );
 }

@@ -216,5 +216,17 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "No se pudo asignar el rol." }, 400);
   }
 
+  // El trigger de user_roles ya registra grant_role, pero solo con
+  // user_id+role — este log adicional guarda nombre/correo/usuario de la
+  // cuenta creada, que es lo que de verdad se necesita para auditar "quién
+  // creó a quién".
+  await adminClient.from("audit_logs").insert({
+    actor_id: caller.id,
+    action: "create_user",
+    entity: "profiles",
+    entity_id: newUserId,
+    detail: { full_name: fullName, email, username, role },
+  });
+
   return jsonResponse({ userId: newUserId, email, tempPassword });
 });

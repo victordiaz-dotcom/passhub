@@ -174,5 +174,19 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: updateError?.message ?? "No se pudo restablecer la contraseña." }, 400);
   }
 
+  const { data: target } = await adminClient
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", userId)
+    .maybeSingle();
+
+  await adminClient.from("audit_logs").insert({
+    actor_id: caller.id,
+    action: "reset_password",
+    entity: "profiles",
+    entity_id: userId,
+    detail: { full_name: target?.full_name, email: target?.email },
+  });
+
   return jsonResponse({ userId, email: updated.user.email, tempPassword: finalPassword });
 });
