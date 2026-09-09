@@ -96,7 +96,11 @@ Deno.serve(async (req) => {
   }
 
   const username = body.username?.trim().toLowerCase();
-  const password = body.password;
+  // Un espacio al final es invisible en un campo de contraseña y los
+  // teclados de celular lo insertan ahí con frecuencia (autocorrección,
+  // autocompletar) — se recorta aquí también como defensa adicional,
+  // aunque el frontend (Login.tsx) ya lo hace antes de enviar.
+  const password = body.password?.trim();
   if (!username || !password) {
     return jsonResponse(GENERIC_ERROR, 400);
   }

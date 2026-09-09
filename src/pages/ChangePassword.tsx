@@ -20,18 +20,25 @@ export default function ChangePassword() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 8) {
+    // Se recorta antes de guardar (no solo al iniciar sesión): un espacio
+    // al final aquí quedaría guardado como parte real de la contraseña, y
+    // ningún login futuro —ni siquiera escrito perfecto— volvería a
+    // coincidir. Mismo criterio que ya aplican create-user/reset-user-password
+    // del lado del servidor para la contraseña que escribe un admin.
+    const trimmedPassword = password.trim();
+
+    if (trimmedPassword.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
-    if (password !== confirmPassword) {
+    if (trimmedPassword !== confirmPassword.trim()) {
       setError("Las contraseñas no coinciden.");
       return;
     }
 
     setSubmitting(true);
 
-    const { error: updateError } = await supabase.auth.updateUser({ password });
+    const { error: updateError } = await supabase.auth.updateUser({ password: trimmedPassword });
 
     if (updateError) {
       console.error(updateError);

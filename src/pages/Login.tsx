@@ -19,9 +19,15 @@ export default function Login() {
     setSubmitting(true);
 
     const trimmed = identifier.trim();
+    // Un espacio al final es invisible en un campo de contraseña, y los
+    // teclados de celular (autocorrección, autocompletar, texto por gestos)
+    // lo insertan ahí con mucha más frecuencia que un teclado físico — sin
+    // este trim, eso bastaba para que un login por lo demás correcto
+    // fallara siempre, solo desde el celular.
+    const trimmedPassword = password.trim();
 
     if (trimmed.includes("@")) {
-      const { error } = await supabase.auth.signInWithPassword({ email: trimmed, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: trimmed, password: trimmedPassword });
       if (error) {
         setError("Usuario o contraseña incorrectos.");
         setSubmitting(false);
@@ -33,7 +39,7 @@ export default function Login() {
     // contraseña del lado del servidor — nunca nos entrega el correo real,
     // y "usuario no existe" y "contraseña incorrecta" dan la misma respuesta.
     const { data, error: fnError } = await supabase.functions.invoke("resolve-username", {
-      body: { username: trimmed, password },
+      body: { username: trimmed, password: trimmedPassword },
     });
 
     if (fnError || !data?.session) {
