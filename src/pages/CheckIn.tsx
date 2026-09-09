@@ -131,6 +131,7 @@ export default function CheckIn() {
     supabase
       .from("companies")
       .select("id, name")
+      .eq("active", true)
       .order("name")
       .then(({ data }) => setCompanies(data ?? []));
   }, []);
@@ -151,6 +152,7 @@ export default function CheckIn() {
       .from("divisions")
       .select("id, name")
       .eq("company_id", selectedCompanyId)
+      .eq("active", true)
       .order("name")
       .then(({ data }) => setDivisions(data ?? []));
   }, [selectedCompanyId]);
@@ -197,6 +199,7 @@ export default function CheckIn() {
     supabase
       .from("visit_types")
       .select("id, name")
+      .eq("active", true)
       .order("name")
       .then(({ data }) => setVisitTypes(data ?? []));
   }, []);

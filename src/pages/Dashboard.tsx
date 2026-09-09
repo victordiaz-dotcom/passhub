@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -20,8 +21,6 @@ type VisitRow = Pick<
 > & {
   employees: Pick<Tables<"employees">, "full_name"> | null;
 };
-
-type VisitType = Pick<Tables<"visit_types">, "id" | "name">;
 
 function todayLocal() {
   const now = new Date();
@@ -46,53 +45,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutTarget, setCheckoutTarget] = useState<VisitRow | null>(null);
-
-  const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
-  const [newVisitType, setNewVisitType] = useState("");
-  const [visitTypeError, setVisitTypeError] = useState<string | null>(null);
-  const [visitTypeSaving, setVisitTypeSaving] = useState(false);
-  const [showVisitTypes, setShowVisitTypes] = useState(false);
-
-  async function loadVisitTypes() {
-    const { data } = await supabase.from("visit_types").select("id, name").order("name");
-    setVisitTypes(data ?? []);
-  }
-
-  useEffect(() => {
-    loadVisitTypes();
-  }, []);
-
-  async function addVisitType(e: React.FormEvent) {
-    e.preventDefault();
-    setVisitTypeError(null);
-
-    const name = newVisitType.trim();
-    if (!name) return;
-
-    setVisitTypeSaving(true);
-    const { error } = await supabase.from("visit_types").insert({ name });
-    setVisitTypeSaving(false);
-
-    if (error) {
-      setVisitTypeError(
-        error.code === "23505" ? "Ese tipo de visita ya existe." : "No se pudo agregar el tipo de visita."
-      );
-      return;
-    }
-
-    setNewVisitType("");
-    loadVisitTypes();
-  }
-
-  async function deleteVisitType(id: string) {
-    setVisitTypeError(null);
-    const { error } = await supabase.from("visit_types").delete().eq("id", id);
-    if (error) {
-      setVisitTypeError("No se pudo eliminar el tipo de visita.");
-      return;
-    }
-    loadVisitTypes();
-  }
 
   async function loadVisits() {
     if (viewMode === "analiticas") return;
@@ -200,58 +152,10 @@ export default function Dashboard() {
         <AnalyticsSection />
       ) : (
         <>
-      <div className="card mb-6">
-        <button
-          type="button"
-          onClick={() => setShowVisitTypes((prev) => !prev)}
-          className="text-sm font-medium text-accent hover:text-accent-dark"
-        >
-          {showVisitTypes ? "Ocultar tipos de visita" : "Administrar tipos de visita"}
-        </button>
-
-        {showVisitTypes && (
-          <div className="mt-3">
-            <div className="mb-3 flex flex-wrap gap-2">
-              {visitTypes.map((type) => (
-                <span
-                  key={type.id}
-                  className="flex items-center gap-2 rounded-full bg-accent-tint px-3 py-1 text-sm text-accent-dark"
-                >
-                  {type.name}
-                  <button
-                    type="button"
-                    onClick={() => deleteVisitType(type.id)}
-                    className="text-accent-dark/60 hover:text-accent-dark"
-                    aria-label={`Eliminar ${type.name}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              {visitTypes.length === 0 && (
-                <span className="text-sm text-ink-soft">No hay tipos de visita registrados.</span>
-              )}
-            </div>
-
-            <form onSubmit={addVisitType} className="flex flex-wrap items-center gap-2">
-              <input
-                type="text"
-                placeholder="Nuevo tipo de visita"
-                value={newVisitType}
-                onChange={(e) => setNewVisitType(e.target.value)}
-                className="input-field h-auto py-2"
-              />
-              <button
-                type="submit"
-                disabled={visitTypeSaving || !newVisitType.trim()}
-                className="btn-primary"
-              >
-                Agregar
-              </button>
-            </form>
-            {visitTypeError && <p className="mt-2 text-sm text-danger">{visitTypeError}</p>}
-          </div>
-        )}
+      <div className="mb-6 flex justify-end">
+        <Link to="/catalogos" className="text-sm font-medium text-accent hover:text-accent-dark">
+          Administrar empresas, divisiones y tipos de visita →
+        </Link>
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">

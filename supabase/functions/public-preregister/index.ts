@@ -109,19 +109,23 @@ Deno.serve(async (req) => {
   // lookup equivalente de colaboradores: expondría a todo el personal sin
   // autenticación, así que "a quién visitas" se define en recepción.
   if (action === "companies") {
-    const { data } = await adminClient.from("companies").select("id, name").order("name");
+    const { data } = await adminClient.from("companies").select("id, name").eq("active", true).order("name");
     return jsonResponse({ companies: data ?? [] });
   }
 
   if (action === "divisions") {
     // Todas, sin filtrar por empresa: el front las filtra por company_id
     // localmente para decidir si mostrar el campo "División".
-    const { data } = await adminClient.from("divisions").select("id, company_id, name").order("name");
+    const { data } = await adminClient
+      .from("divisions")
+      .select("id, company_id, name")
+      .eq("active", true)
+      .order("name");
     return jsonResponse({ divisions: data ?? [] });
   }
 
   if (action === "visitTypes") {
-    const { data } = await adminClient.from("visit_types").select("id, name").order("name");
+    const { data } = await adminClient.from("visit_types").select("id, name").eq("active", true).order("name");
     return jsonResponse({ visitTypes: data ?? [] });
   }
 
@@ -254,6 +258,7 @@ Deno.serve(async (req) => {
     .from("companies")
     .select("id")
     .eq("id", companyId)
+    .eq("active", true)
     .maybeSingle();
 
   if (!company) {

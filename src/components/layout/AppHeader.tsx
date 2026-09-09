@@ -69,6 +69,11 @@ export function AppHeader() {
             Cuentas
           </NavLink>
         )}
+        {isAdmin && (
+          <NavLink to="/catalogos" className={navLinkClass}>
+            Catálogos
+          </NavLink>
+        )}
         {isSuperadmin && (
           <NavLink to="/auditoria" className={navLinkClass}>
             Auditoría

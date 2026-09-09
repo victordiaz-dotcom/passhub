@@ -80,16 +80,19 @@ export type Database = {
       }
       companies: {
         Row: {
+          active: boolean
           created_at: string
           id: string
           name: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           id?: string
           name: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           id?: string
           name?: string
@@ -98,18 +101,21 @@ export type Database = {
       }
       divisions: {
         Row: {
+          active: boolean
           company_id: string
           created_at: string
           id: string
           name: string
         }
         Insert: {
+          active?: boolean
           company_id: string
           created_at?: string
           id?: string
           name: string
         }
         Update: {
+          active?: boolean
           company_id?: string
           created_at?: string
           id?: string
@@ -350,16 +356,19 @@ export type Database = {
       }
       visit_types: {
         Row: {
+          active: boolean
           created_at: string
           id: string
           name: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           id?: string
           name: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           id?: string
           name?: string
