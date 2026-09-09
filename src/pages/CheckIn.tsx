@@ -58,6 +58,22 @@ function addDays(value: string, days: number) {
   return `${y}-${m}-${d}`;
 }
 
+// crypto.randomUUID() exige un contexto seguro (https o localhost) — al
+// entrar por la IP de la red local sobre http plano no está disponible y
+// tronaba toda la pantalla. Este id solo necesita ser único para esta
+// carpeta de Storage (no es sensible, ver comentario en photoSessionId),
+// así que basta con crypto.getRandomValues(), que sí funciona en cualquier
+// contexto, para armar un id con la misma forma de un UUID v4.
+function randomId() {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export default function CheckIn() {
   const { session, companyId } = useAuth();
 
@@ -95,7 +111,7 @@ export default function CheckIn() {
   // usando este mismo id. Se mantiene estable durante todo el intento
   // (nunca se regenera entre subir una foto y enviar el formulario) y solo
   // cambia al iniciar un registro nuevo, en resetForm().
-  const [photoSessionId, setPhotoSessionId] = useState(() => crypto.randomUUID());
+  const [photoSessionId, setPhotoSessionId] = useState(() => randomId());
   const [photoResetSignal, setPhotoResetSignal] = useState(0);
   const [visitorPhotoUploaded, setVisitorPhotoUploaded] = useState(false);
   const [idPhotoUploaded, setIdPhotoUploaded] = useState(false);
@@ -330,7 +346,7 @@ export default function CheckIn() {
     setDivision("");
     setVisitDate(todayLocal());
     setVisitTime("");
-    setPhotoSessionId(crypto.randomUUID());
+    setPhotoSessionId(randomId());
     setPhotoResetSignal((n) => n + 1);
     setVisitorPhotoUploaded(false);
     setIdPhotoUploaded(false);
