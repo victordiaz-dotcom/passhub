@@ -7,6 +7,44 @@ import { supabase } from "@/integrations/supabase/client";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
+// La cámara de un celular sin comprimir puede pesar varios MB por foto —
+// con dos fotos por visita (visitante + INE) y sin ningún límite de
+// antigüedad, eso llena el 1GB del plan Free de Storage en días, no en
+// meses, en cuanto haya tráfico real de varias oficinas. Se reduce cada
+// foto a un tamaño más razonable antes de subirla, manteniendo suficiente
+// resolución para que el INE siga siendo legible.
+const MAX_DIMENSION = 1600;
+const JPEG_QUALITY = 0.8;
+
+async function compressImage(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY)
+    );
+    if (!blob || blob.size >= file.size) return file;
+
+    return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" });
+  } catch {
+    // HEIC en navegadores que no lo decodifican vía canvas, o cualquier
+    // otro fallo al comprimir: nunca debe bloquear el registro de la
+    // visita, se sube el archivo original tal cual.
+    return file;
+  }
+}
+
 type PhotoUploadFieldProps = {
   label: string;
   companyId: string;
@@ -87,19 +125,22 @@ export function PhotoUploadField({
       return;
     }
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    const localUrl = URL.createObjectURL(file);
-    setPreviewUrl(localUrl);
-    onPreviewChange?.(localUrl);
     setUploaded(false);
     onUploadedChange(false);
     setUploading(true);
+
+    const compressed = await compressImage(file);
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    const localUrl = URL.createObjectURL(compressed);
+    setPreviewUrl(localUrl);
+    onPreviewChange?.(localUrl);
 
     // upsert: true sobre la misma ruta fija de esta sección — una foto
     // nueva reemplaza a la anterior en Storage, nunca se acumulan.
     const { error: uploadError } = await supabase.storage
       .from("visit-photos")
-      .upload(path, file, { contentType: file.type, upsert: true });
+      .upload(path, compressed, { contentType: compressed.type, upsert: true });
 
     setUploading(false);
 
