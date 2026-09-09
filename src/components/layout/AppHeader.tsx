@@ -11,7 +11,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `text-sm font-medium ${isActive ? "text-white" : "text-white/70 hover:text-white"}`;
 
 export function AppHeader() {
-  const { profile, roles, isAdmin, signOut } = useAuth();
+  const { profile, roles, isAdmin, isSuperadmin, signOut } = useAuth();
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? "Usuario";
   const roleLabel = roles.map((role) => ROLE_LABELS[role] ?? role).join(", ");
 
@@ -61,6 +61,11 @@ export function AppHeader() {
         {isAdmin && (
           <NavLink to="/users" className={navLinkClass}>
             Cuentas
+          </NavLink>
+        )}
+        {isSuperadmin && (
+          <NavLink to="/auditoria" className={navLinkClass}>
+            Auditoría
           </NavLink>
         )}
       </nav>

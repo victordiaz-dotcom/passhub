@@ -14,6 +14,7 @@ import Dashboard from "@/pages/Dashboard";
 import Historial from "@/pages/Historial";
 import Employees from "@/pages/Employees";
 import Users from "@/pages/Users";
+import AuditLog from "@/pages/AuditLog";
 
 // Guardia es de solo lectura y no tiene nada que hacer en el check-in
 // completo: si la cuenta solo tiene ese rol, "/" le muestra la pantalla de
@@ -82,6 +83,16 @@ export default function App() {
             <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
               <Layout>
                 <Users />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/auditoria"
+          element={
+            <ProtectedRoute allowedRoles={["superadmin"]}>
+              <Layout>
+                <AuditLog />
               </Layout>
             </ProtectedRoute>
           }
