@@ -246,12 +246,14 @@ Deno.serve(async (req) => {
     company_id: string;
     active: true;
     email: string;
+    country: string | null;
   }> = [];
   const rowsWithoutEmail: Array<{
     slack_id: string;
     full_name: string;
     company_id: string;
     active: true;
+    country: string | null;
   }> = [];
 
   for (const u of validUsers) {
@@ -259,11 +261,12 @@ Deno.serve(async (req) => {
     const full_name = (u.real_name as string).trim();
     const email = emailBySlackId.get(slackId);
     const company_id = resolveCompanyId(u.organization);
+    const country = typeof u.country === "string" && u.country.trim() ? u.country.trim() : null;
 
     if (email) {
-      rowsWithEmail.push({ slack_id: slackId, full_name, company_id, active: true, email });
+      rowsWithEmail.push({ slack_id: slackId, full_name, company_id, active: true, email, country });
     } else {
-      rowsWithoutEmail.push({ slack_id: slackId, full_name, company_id, active: true });
+      rowsWithoutEmail.push({ slack_id: slackId, full_name, company_id, active: true, country });
     }
   }
 

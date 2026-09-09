@@ -17,10 +17,15 @@ export default function Employees() {
     // muestran en absoluto en esta vista — se filtran aquí en la consulta,
     // no solo se ocultan por CSS. Esta vista es de solo lectura: la única
     // acción posible es volver a sincronizar desde el directorio de Slack.
+    // Aparte de ese filtro, solo se muestra personal de México: el
+    // directorio de Slack incluye colaboradores de otros países (ver
+    // columna "country", poblada por sync-employees desde el campo
+    // "country" del directorio).
     const { data } = await supabase
       .from("employees")
       .select("*, companies(name)")
       .eq("active", true)
+      .eq("country", "MX")
       .order("full_name");
     setEmployees((data as Employee[] | null) ?? []);
     setLoading(false);
