@@ -209,8 +209,11 @@ Deno.serve(async (req) => {
     "hr latam",
   ]);
 
-  // Solo personas activas, con slack_id y real_name válidos, y que no
-  // parezcan una cuenta de puesto/rol genérico.
+  // Solo personas activas, con slack_id y real_name válidos, que no
+  // parezcan una cuenta de puesto/rol genérico, y de México — el
+  // directorio de Slack incluye personal de otros países (AR, CO, IN,
+  // etc.), pero esta empresa solo quiere sincronizar/mostrar como
+  // colaboradores a quienes tengan country = 'MX'.
   const validUsers = slackUsers.filter(
     (u) =>
       u.status === "active" &&
@@ -220,7 +223,8 @@ Deno.serve(async (req) => {
       (u.real_name as string).trim() &&
       !PLACEHOLDER_ROLE_NAME.test((u.real_name as string).trim()) &&
       !PLACEHOLDER_TEAM_LEAD_PREFIX.test((u.real_name as string).trim()) &&
-      !PLACEHOLDER_EXACT_NAMES.has((u.real_name as string).trim().toLowerCase())
+      !PLACEHOLDER_EXACT_NAMES.has((u.real_name as string).trim().toLowerCase()) &&
+      u.country === "MX"
   );
 
   if (validUsers.length === 0) {
