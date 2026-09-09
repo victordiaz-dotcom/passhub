@@ -6,8 +6,7 @@ import type { Tables } from "@/integrations/supabase/types";
 type AuditRow = Tables<"audit_logs">;
 type ProfileLite = { id: string; full_name: string; email: string };
 
-const filterInputClass =
-  "rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-50";
+const filterInputClass = "input-field h-auto py-2 disabled:opacity-50";
 
 const ACTION_LABELS: Record<string, string> = {
   create_user: "Cuenta creada",
@@ -199,7 +198,7 @@ export default function AuditLog() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
+      <div className="card overflow-x-auto p-0">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
             <tr className="border-b border-line text-ink-soft">

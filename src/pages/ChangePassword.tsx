@@ -66,7 +66,7 @@ export default function ChangePassword() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-      <div className="w-full max-w-sm rounded-xl border border-line bg-card p-10 shadow-lg">
+      <div className="card w-full max-w-sm p-10">
         <div className="mb-8 text-center">
           <h1 className="font-display text-2xl font-bold text-ink">Cambia tu contraseña</h1>
           <p className="mt-1 text-sm text-ink-soft">
@@ -88,7 +88,7 @@ export default function ChangePassword() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2.5"
             />
           </div>
 
@@ -104,7 +104,7 @@ export default function ChangePassword() {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2.5"
             />
           </div>
 
@@ -117,7 +117,7 @@ export default function ChangePassword() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-md bg-accent px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-accent-dark disabled:opacity-50"
+            className="btn-primary h-auto w-full py-2.5"
           >
             {submitting ? "Guardando..." : "Guardar contraseña"}
           </button>

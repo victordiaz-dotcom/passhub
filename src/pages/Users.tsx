@@ -276,7 +276,7 @@ export default function Users() {
         </div>
       )}
 
-      <div className="mb-6 rounded-lg border border-line bg-card p-6 shadow-sm">
+      <div className="card mb-6">
         <h2 className="mb-4 font-display text-base font-bold text-ink">
           {isEditing ? "Editar cuenta" : "Nueva cuenta"}
         </h2>
@@ -292,7 +292,7 @@ export default function Users() {
               required
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2"
             />
           </div>
 
@@ -306,7 +306,7 @@ export default function Users() {
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2"
             />
             {isEditing && form.email !== editingOriginalEmail && (
               <p className="mt-1 text-xs text-ink-soft">
@@ -325,7 +325,7 @@ export default function Users() {
               required
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().trim() })}
-              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2"
             />
             <p className="mt-1 text-xs text-ink-soft">Con esto (o el correo) inicia sesión.</p>
           </div>
@@ -339,7 +339,7 @@ export default function Users() {
               required
               value={form.companyId}
               onChange={(e) => setForm({ ...form, companyId: e.target.value })}
-              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2"
             >
               <option value="" disabled>
                 Selecciona una empresa
@@ -361,7 +361,7 @@ export default function Users() {
               required
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2"
             >
               <option value="recepcion">Recepción</option>
               <option value="guardia">Guardia</option>
@@ -410,26 +410,18 @@ export default function Users() {
                   placeholder="Mínimo 8 caracteres"
                   value={form.customPassword}
                   onChange={(e) => setForm({ ...form, customPassword: e.target.value })}
-                  className="mt-2 w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                  className="input-field mt-2 h-auto py-2"
                 />
               )}
             </div>
           )}
 
           <div className="flex items-end gap-2 sm:col-span-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-50"
-            >
+            <button type="submit" disabled={saving} className="btn-primary">
               {saving ? "Guardando..." : isEditing ? "Guardar cambios" : "Crear cuenta"}
             </button>
             {isEditing && (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink-soft hover:bg-paper"
-              >
+              <button type="button" onClick={cancelEdit} className="btn-secondary">
                 Cancelar
               </button>
             )}
@@ -441,7 +433,7 @@ export default function Users() {
 
       <h2 className="mb-4 font-display text-base font-bold text-ink">Cuentas registradas</h2>
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
+      <div className="card overflow-x-auto p-0">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
             <tr className="border-b border-line text-ink-soft">
@@ -547,10 +539,7 @@ export default function Users() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
           onClick={closeResetDialog}
         >
-          <div
-            className="w-full max-w-sm rounded-lg border border-line bg-card p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="modal max-w-sm" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-bold text-ink">
               Restablecer contraseña de {resetTarget.full_name}
             </h2>
@@ -587,25 +576,21 @@ export default function Users() {
                 placeholder="Mínimo 8 caracteres"
                 value={resetCustomPassword}
                 onChange={(e) => setResetCustomPassword(e.target.value)}
-                className="mt-3 w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                className="input-field mt-3 h-auto py-2"
               />
             )}
 
             {resetError && <p className="mt-3 text-sm text-danger">{resetError}</p>}
 
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={closeResetDialog}
-                className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink-soft hover:bg-paper"
-              >
+              <button type="button" onClick={closeResetDialog} className="btn-secondary">
                 Cancelar
               </button>
               <button
                 type="button"
                 disabled={resettingId === resetTarget.id}
                 onClick={handleResetPassword}
-                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-50"
+                className="btn-primary"
               >
                 {resettingId === resetTarget.id ? "Restableciendo..." : "Restablecer"}
               </button>

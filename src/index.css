@@ -1,3 +1,10 @@
+/* Clases de componente literales de tendencys-design-system.css
+   (.btn-primary, .card, .input-field, .badge, .modal, etc.) — ver ese
+   archivo para la fuente exacta. @import debe ir antes que cualquier
+   otra regla en el archivo (incluyendo @tailwind), por la especificación
+   de CSS. */
+@import "./design-system.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -186,13 +186,9 @@ export default function Dashboard() {
                 disabled={viewMode === "dentro"}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-50"
+                className="input-field h-auto py-2 disabled:opacity-50"
               />
-              <button
-                type="button"
-                onClick={loadVisits}
-                className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink-soft hover:bg-paper"
-              >
+              <button type="button" onClick={loadVisits} className="btn-secondary">
                 Actualizar
               </button>
             </>
@@ -204,7 +200,7 @@ export default function Dashboard() {
         <AnalyticsSection />
       ) : (
         <>
-      <div className="mb-6 rounded-lg border border-line bg-card p-4 shadow-sm">
+      <div className="card mb-6">
         <button
           type="button"
           onClick={() => setShowVisitTypes((prev) => !prev)}
@@ -243,12 +239,12 @@ export default function Dashboard() {
                 placeholder="Nuevo tipo de visita"
                 value={newVisitType}
                 onChange={(e) => setNewVisitType(e.target.value)}
-                className="rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                className="input-field h-auto py-2"
               />
               <button
                 type="submit"
                 disabled={visitTypeSaving || !newVisitType.trim()}
-                className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-50"
+                className="btn-primary"
               >
                 Agregar
               </button>
@@ -261,7 +257,7 @@ export default function Dashboard() {
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {viewMode === "fecha" ? (
           <>
-            <div className="rounded-lg border border-line bg-card p-4 shadow-sm">
+            <div className="card">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">Visitas hoy</p>
               <p className="mt-1 font-display text-2xl font-bold text-ink">{visits.length}</p>
             </div>
@@ -280,7 +276,7 @@ export default function Dashboard() {
             <p className="mt-1 font-display text-2xl font-bold text-accent-dark">{visits.length}</p>
           </div>
         )}
-        <div className="rounded-lg border border-line bg-card p-4 shadow-sm">
+        <div className="card">
           <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
             Empresas con actividad
           </p>
@@ -290,7 +286,7 @@ export default function Dashboard() {
 
       {checkoutError && <p className="mb-3 text-sm text-danger">{checkoutError}</p>}
 
-      <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
+      <div className="card overflow-x-auto p-0">
         <table className="w-full min-w-[1100px] text-left text-sm">
           <thead>
             <tr className="border-b border-line text-ink-soft">

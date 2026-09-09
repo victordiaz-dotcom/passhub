@@ -61,7 +61,7 @@ export default function Employees() {
           type="button"
           onClick={handleSync}
           disabled={syncing}
-          className="rounded-md border border-line px-3 py-2 text-sm font-medium text-ink-soft hover:bg-paper disabled:opacity-50"
+          className="btn-secondary"
         >
           {syncing ? "Sincronizando..." : "Sincronizar colaboradores"}
         </button>
@@ -73,7 +73,7 @@ export default function Employees() {
         </p>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-line bg-card shadow-sm">
+      <div className="card overflow-hidden p-0">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-line text-ink-soft">

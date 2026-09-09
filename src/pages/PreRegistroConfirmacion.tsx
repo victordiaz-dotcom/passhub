@@ -167,7 +167,7 @@ export default function PreRegistroConfirmacion() {
   if (error || !details) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-        <div className="w-full max-w-sm rounded-lg border border-line bg-card p-8 text-center shadow-sm">
+        <div className="card w-full max-w-sm p-8 text-center">
           <div className="mb-2 flex justify-end gap-1 text-xs font-medium">
             <button
               type="button"
@@ -194,7 +194,7 @@ export default function PreRegistroConfirmacion() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-      <div className="w-full max-w-sm rounded-lg border border-line bg-card p-8 shadow-sm">
+      <div className="card w-full max-w-sm p-8">
         <div className="mb-2 flex justify-end gap-1 text-xs font-medium">
           <button
             type="button"
@@ -254,7 +254,7 @@ export default function PreRegistroConfirmacion() {
         <button
           type="button"
           onClick={downloadQr}
-          className="mt-6 w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
+          className="btn-primary mt-6 h-auto w-full py-2"
         >
           {t.downloadQr}
         </button>

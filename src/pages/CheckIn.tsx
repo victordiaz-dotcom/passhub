@@ -26,12 +26,9 @@ type InsideVisit = Pick<
 
 const QR_REGION_ID = "qr-reader-region";
 
-const inputClass =
-  "w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink invalid:border-danger focus:border-accent focus:outline-none disabled:bg-paper disabled:opacity-60";
-const plainSelectClass =
-  "w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:bg-paper disabled:opacity-60";
-const invalidSelectClass =
-  "w-full appearance-none rounded-md border border-line bg-card px-3 py-2 text-sm text-ink invalid:border-danger focus:border-accent focus:outline-none disabled:bg-paper disabled:opacity-60";
+const inputClass = "input-field h-auto py-2 invalid:border-danger disabled:opacity-60";
+const plainSelectClass = "input-field h-auto py-2 disabled:opacity-60";
+const invalidSelectClass = "input-field h-auto appearance-none py-2 invalid:border-danger disabled:opacity-60";
 
 function todayLocal() {
   const now = new Date();
@@ -469,7 +466,7 @@ export default function CheckIn() {
         {tab === "dentro" ? (
           <div>
             {checkoutError && <p className="mb-3 text-sm text-danger">{checkoutError}</p>}
-            <div className="overflow-hidden rounded-lg border border-line bg-card shadow-sm">
+            <div className="card overflow-hidden p-0">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-ink-soft">
@@ -530,7 +527,7 @@ export default function CheckIn() {
               )}
 
               {scannerOpen && (
-                <div className="rounded-lg border border-line bg-card p-4">
+                <div className="card">
                   <div id={QR_REGION_ID} className="mx-auto w-full max-w-xs" />
                   {scanError && <p className="mt-2 text-sm text-danger">{scanError}</p>}
                   <button
@@ -565,7 +562,7 @@ export default function CheckIn() {
                 </div>
               )}
 
-              <div className="rounded-lg bg-card p-6 shadow-sm">
+              <div className="card">
                 <h2 className="font-display text-sm font-bold uppercase tracking-wide text-accent">
                   Datos de la visita
                 </h2>
@@ -791,7 +788,7 @@ export default function CheckIn() {
                 </form>
               </div>
 
-              <div className="rounded-lg bg-card p-6 shadow-sm">
+              <div className="card">
                 <h2 className="font-display text-sm font-bold uppercase tracking-wide text-accent">
                   Fotografías
                 </h2>
@@ -890,7 +887,7 @@ export default function CheckIn() {
                 type="submit"
                 form="checkin-form"
                 disabled={submitting || !!folio}
-                className="mt-4 w-full rounded-md bg-accent px-4 py-3 text-sm font-bold text-white shadow-md hover:bg-accent-dark disabled:opacity-50"
+                className="btn-primary mt-4 h-auto w-full py-3"
               >
                 {folio ? "Pase generado" : submitting ? "Registrando..." : "Registrar visita"}
               </button>

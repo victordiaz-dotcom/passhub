@@ -219,7 +219,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-card p-4 shadow-sm">
+    <div className="card">
       <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-display text-sm font-bold uppercase tracking-wide text-ink-soft">{title}</h3>

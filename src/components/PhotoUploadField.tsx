@@ -182,7 +182,7 @@ export function PhotoUploadField({
         type="button"
         disabled={disabled || uploading}
         onClick={() => inputRef.current?.click()}
-        className="w-full rounded-md bg-ink px-4 py-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-60"
+        className="btn-primary h-auto w-full py-3 disabled:opacity-60"
       >
         {uploading ? "Subiendo foto..." : uploaded ? "Cambiar foto" : "Tomar / seleccionar foto"}
       </button>

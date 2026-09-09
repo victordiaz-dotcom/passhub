@@ -25,7 +25,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-          <div className="w-full max-w-lg rounded-lg border border-line bg-card p-8 text-center shadow-sm">
+          <div className="card w-full max-w-lg p-8 text-center">
             <h1 className="mb-2 font-display text-lg font-bold text-ink">Algo salió mal</h1>
             <p className="mb-4 text-sm text-ink-soft">
               Ocurrió un error inesperado. Intenta recargar la página.

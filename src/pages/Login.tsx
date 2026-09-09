@@ -61,7 +61,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-      <div className="w-full max-w-sm rounded-xl border border-line bg-card p-10 shadow-lg">
+      <div className="card w-full max-w-sm p-10">
         <div className="mb-8 text-center">
           <img src="/logo.png" alt="PassHub" className="mx-auto mb-3 h-16 w-auto" />
           <h1 className="font-display text-2xl font-bold text-ink">
@@ -82,7 +82,7 @@ export default function Login() {
               autoComplete="username"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2.5"
             />
           </div>
 
@@ -97,7 +97,7 @@ export default function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-accent focus:outline-none"
+              className="input-field h-auto py-2.5"
             />
           </div>
 
@@ -110,7 +110,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-md bg-accent px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-accent-dark disabled:opacity-50"
+            className="btn-primary h-auto w-full py-2.5"
           >
             {submitting ? "Entrando..." : "Entrar"}
           </button>

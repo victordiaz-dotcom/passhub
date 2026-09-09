@@ -82,8 +82,7 @@ function startOfWeekLocal() {
 
 type Receptionist = { id: string; full_name: string };
 
-const filterInputClass =
-  "rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none disabled:opacity-50";
+const filterInputClass = "input-field h-auto py-2 disabled:opacity-50";
 
 type FrequencyRow = { name: string; count: number; lastVisit: string };
 
@@ -469,7 +468,7 @@ export default function Historial() {
       </div>
 
       {view === "frecuencia" ? (
-        <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
+        <div className="card overflow-x-auto p-0">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-line text-ink-soft">
@@ -503,7 +502,7 @@ export default function Historial() {
       ) : view === "visitas" ? (
         <div>
           {checkoutError && <p className="mb-3 text-sm text-danger">{checkoutError}</p>}
-          <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
+          <div className="card overflow-x-auto p-0">
           <table className="w-full min-w-[1200px] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-ink-soft">
@@ -580,7 +579,7 @@ export default function Historial() {
           </div>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
+        <div className="card overflow-x-auto p-0">
           <table className="w-full min-w-[1000px] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-ink-soft">
