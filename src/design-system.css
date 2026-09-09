@@ -399,3 +399,34 @@ select.input-field:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- MODO OSCURO ----------
+   tendencys-design-system.css no define una variante oscura para
+   ninguna de sus clases (fondo blanco fijo, texto oscuro fijo) — por
+   eso en modo oscuro se veían mal: texto claro (text-ink, que sí sigue
+   el tema) quedaba sobre un fondo blanco fijo. Se reutilizan aquí los
+   mismos valores que PassHub ya usa para modo oscuro (ver .dark en
+   index.css: --card #1a1f27, --line #2b313b, --ink #f3f5f7, --ink-soft
+   #9aa3af, --paper #12161c), solo para las clases de este archivo que
+   sí están en uso (.card, .input-field, .btn-secondary, .modal —
+   .btn-primary no necesita ajuste, ya es fondo oscuro con texto blanco
+   en ambos temas). */
+.dark .card,
+.dark .modal,
+.dark .input-field {
+  background: #1a1f27;
+  border-color: #2b313b;
+  color: #f3f5f7;
+}
+.dark .input-field::placeholder {
+  color: #9aa3af;
+}
+.dark .btn-secondary {
+  background: #1a1f27;
+  border-color: #2b313b;
+  color: #9aa3af;
+}
+.dark .btn-secondary:hover {
+  background: #12161c;
+  border-color: #3a4048;
+}
