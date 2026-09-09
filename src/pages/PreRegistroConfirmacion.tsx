@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import QRCodeStyling from "qr-code-styling";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  PREREG_T,
+  resolveInitialLang,
+  storeLang,
+  translateServerError,
+  type Lang,
+} from "@/lib/preregistroI18n";
 
 type Preregistration = {
   visitor_name: string;
@@ -40,10 +47,18 @@ function addDays(value: string, days: number) {
 
 export default function PreRegistroConfirmacion() {
   const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
   const [details, setDetails] = useState<Preregistration | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [zoomedSrc, setZoomedSrc] = useState<string | null>(null);
+  const [lang, setLang] = useState<Lang>(() => resolveInitialLang(searchParams.get("lang")));
+  const t = PREREG_T[lang];
+
+  function changeLang(next: Lang) {
+    setLang(next);
+    storeLang(next);
+  }
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const qrCodeRef = useRef<QRCodeStyling | null>(null);
@@ -51,7 +66,7 @@ export default function PreRegistroConfirmacion() {
   useEffect(() => {
     if (!token) {
       setLoading(false);
-      setError("Falta el código del pre-registro en el link.");
+      setError(t.missingTokenInUrl);
       return;
     }
 
@@ -62,18 +77,18 @@ export default function PreRegistroConfirmacion() {
 
         if (invokeError) {
           console.error(invokeError);
-          setError("No se pudo cargar el pre-registro. Intenta de nuevo.");
+          setError(t.loadErrorFallback);
           return;
         }
 
         if (data?.error) {
-          setError(data.error);
+          setError(translateServerError(data.error, lang));
           return;
         }
 
         if (!data?.preregistration) {
           console.error("Respuesta inesperada de public-preregister:", data);
-          setError("No se pudo leer la información del pre-registro.");
+          setError(t.unexpectedResponse);
           return;
         }
 
@@ -82,8 +97,9 @@ export default function PreRegistroConfirmacion() {
       .catch((err) => {
         console.error(err);
         setLoading(false);
-        setError("No se pudo cargar el pre-registro. Intenta de nuevo.");
+        setError(t.loadErrorFallback);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
@@ -143,7 +159,7 @@ export default function PreRegistroConfirmacion() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-        <p className="text-sm text-ink-soft">Cargando...</p>
+        <p className="text-sm text-ink-soft">{t.loading}</p>
       </div>
     );
   }
@@ -152,8 +168,25 @@ export default function PreRegistroConfirmacion() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper p-6">
         <div className="w-full max-w-sm rounded-lg border border-line bg-card p-8 text-center shadow-sm">
-          <h1 className="mb-2 font-display text-xl font-bold text-ink">Pre-registro no disponible</h1>
-          <p className="text-sm text-danger">{error ?? "Revisa que el link esté completo."}</p>
+          <div className="mb-2 flex justify-end gap-1 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => changeLang("es")}
+              className={lang === "es" ? "text-accent" : "text-ink-soft hover:text-ink"}
+            >
+              ES
+            </button>
+            <span className="text-ink-soft">/</span>
+            <button
+              type="button"
+              onClick={() => changeLang("en")}
+              className={lang === "en" ? "text-accent" : "text-ink-soft hover:text-ink"}
+            >
+              EN
+            </button>
+          </div>
+          <h1 className="mb-2 font-display text-xl font-bold text-ink">{t.notAvailableTitle}</h1>
+          <p className="text-sm text-danger">{error ?? t.notAvailableFallback}</p>
         </div>
       </div>
     );
@@ -162,13 +195,28 @@ export default function PreRegistroConfirmacion() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper p-6">
       <div className="w-full max-w-sm rounded-lg border border-line bg-card p-8 shadow-sm">
-        <h1 className="mb-1 text-center font-display text-xl font-bold text-ink">¡Todo listo para tu visita!</h1>
+        <div className="mb-2 flex justify-end gap-1 text-xs font-medium">
+          <button
+            type="button"
+            onClick={() => changeLang("es")}
+            className={lang === "es" ? "text-accent" : "text-ink-soft hover:text-ink"}
+          >
+            ES
+          </button>
+          <span className="text-ink-soft">/</span>
+          <button
+            type="button"
+            onClick={() => changeLang("en")}
+            className={lang === "en" ? "text-accent" : "text-ink-soft hover:text-ink"}
+          >
+            EN
+          </button>
+        </div>
+        <h1 className="mb-1 text-center font-display text-xl font-bold text-ink">{t.heading}</h1>
         <p className="mb-1 text-center text-sm font-medium text-accent-dark">
-          Nos da mucho gusto recibirte, {details.visitor_name}
+          {t.greeting(details.visitor_name)}
         </p>
-        <p className="mb-6 text-center text-sm text-ink-soft">
-          Presenta este código QR en recepción para darte la bienvenida.
-        </p>
+        <p className="mb-6 text-center text-sm text-ink-soft">{t.instructions}</p>
 
         {(() => {
           // Un pre-registro cancelado o vencido nunca llega aquí: el
@@ -180,15 +228,16 @@ export default function PreRegistroConfirmacion() {
           if (details.status === "usada") {
             return (
               <div className="mb-6 rounded-md border border-line bg-paper p-3 text-center text-sm text-ink-soft">
-                Ya se usó este pase{details.used_at ? ` el ${new Date(details.used_at).toLocaleString()}` : ""}.
-                Sigue vigente para volver a ingresar hasta el {formatDate(expiresOn)}.
+                {t.usedPrefix}
+                {details.used_at ? t.usedAt(new Date(details.used_at).toLocaleString()) : ""}
+                {t.stillValidUntil(formatDate(expiresOn))}
               </div>
             );
           }
 
           return (
             <div className="mb-6 rounded-md border border-line bg-paper p-3 text-center text-sm text-ink-soft">
-              Vigente para ingresar hasta el {formatDate(expiresOn)}.
+              {t.validUntil(formatDate(expiresOn))}
             </div>
           );
         })()}
@@ -200,89 +249,87 @@ export default function PreRegistroConfirmacion() {
         >
           <div ref={qrContainerRef} className="flex justify-center" />
         </button>
-        <p className="mt-2 text-center text-xs text-ink-soft">Toca el código para ampliarlo</p>
+        <p className="mt-2 text-center text-xs text-ink-soft">{t.tapToZoom}</p>
 
         <button
           type="button"
           onClick={downloadQr}
           className="mt-6 w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark"
         >
-          Descargar QR (PNG)
+          {t.downloadQr}
         </button>
 
         <dl className="mt-6 divide-y divide-line text-sm">
           <div className="flex justify-between py-2">
-            <dt className="text-ink-soft">Visitante</dt>
+            <dt className="text-ink-soft">{t.fieldVisitor}</dt>
             <dd className="font-medium text-ink">{details.visitor_name}</dd>
           </div>
           {details.visitor_company && (
             <div className="flex justify-between py-2">
-              <dt className="text-ink-soft">Empresa</dt>
+              <dt className="text-ink-soft">{t.fieldCompany}</dt>
               <dd className="font-medium text-ink">{details.visitor_company}</dd>
             </div>
           )}
           {details.visitor_phone && (
             <div className="flex justify-between py-2">
-              <dt className="text-ink-soft">Teléfono</dt>
+              <dt className="text-ink-soft">{t.fieldPhone}</dt>
               <dd className="font-medium text-ink">{details.visitor_phone}</dd>
             </div>
           )}
           {details.visitor_email && (
             <div className="flex justify-between py-2">
-              <dt className="text-ink-soft">Correo</dt>
+              <dt className="text-ink-soft">{t.fieldEmail}</dt>
               <dd className="font-medium text-ink">{details.visitor_email}</dd>
             </div>
           )}
           <div className="flex justify-between py-2">
-            <dt className="text-ink-soft">Visita a</dt>
+            <dt className="text-ink-soft">{t.fieldVisiting}</dt>
             <dd className="font-medium text-ink">{details.companies?.name ?? "—"}</dd>
           </div>
           {details.employees?.full_name && (
             <div className="flex justify-between py-2">
-              <dt className="text-ink-soft">Recibe</dt>
+              <dt className="text-ink-soft">{t.fieldHost}</dt>
               <dd className="font-medium text-ink">{details.employees.full_name}</dd>
             </div>
           )}
           {details.visit_type && (
             <div className="flex justify-between py-2">
-              <dt className="text-ink-soft">Tipo de visita</dt>
+              <dt className="text-ink-soft">{t.fieldVisitType}</dt>
               <dd className="font-medium text-ink">{details.visit_type}</dd>
             </div>
           )}
           <div className="flex justify-between py-2">
-            <dt className="text-ink-soft">Fecha</dt>
+            <dt className="text-ink-soft">{t.fieldDate}</dt>
             <dd className="font-medium text-ink">{formatDate(details.visit_date)}</dd>
           </div>
           {details.visit_time && (
             <div className="flex justify-between py-2">
-              <dt className="text-ink-soft">Hora</dt>
+              <dt className="text-ink-soft">{t.fieldTime}</dt>
               <dd className="font-medium text-ink">{details.visit_time}</dd>
             </div>
           )}
           {details.has_vehicle && (
             <>
               <div className="flex justify-between py-2">
-                <dt className="text-ink-soft">Vehículo</dt>
+                <dt className="text-ink-soft">{t.fieldVehicle}</dt>
                 <dd className="font-medium text-ink">
                   {details.vehicle_color} {details.vehicle_model}
                 </dd>
               </div>
               <div className="flex justify-between py-2">
-                <dt className="text-ink-soft">Placas</dt>
+                <dt className="text-ink-soft">{t.fieldPlate}</dt>
                 <dd className="font-medium text-ink">{details.vehicle_plate}</dd>
               </div>
             </>
           )}
         </dl>
 
-        <p className="mt-6 text-center text-xs text-ink-soft">
-          Guarda este link o toma una captura de pantalla: es la única forma de volver a ver tu pase.
-        </p>
+        <p className="mt-6 text-center text-xs text-ink-soft">{t.saveLinkNote}</p>
 
         <p className="mt-4 border-t border-line pt-4 text-center text-xs text-ink-soft">
           Av. I. Morones Prieto No. 2110, Local 3-B, Col. Loma Larga, C.P. 64710, Monterrey, N.L.
           <br />
-          Teléfono: +52 81 2085 8093
+          {t.phoneLabel}: +52 81 2085 8093
         </p>
       </div>
 
@@ -293,7 +340,7 @@ export default function PreRegistroConfirmacion() {
         >
           <img
             src={zoomedSrc}
-            alt="Código QR ampliado"
+            alt={t.qrAlt}
             className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
           />
         </div>

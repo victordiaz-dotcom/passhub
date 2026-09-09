@@ -4,6 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import {
+  PREREG_T,
+  resolveInitialLang,
+  storeLang,
+  translateServerError,
+  type Lang,
+} from "@/lib/preregistroI18n";
 
 type Company = { id: string; name: string };
 type Division = { id: string; company_id: string; name: string };
@@ -42,6 +49,13 @@ export default function PreRegistro() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lang, setLang] = useState<Lang>(() => resolveInitialLang(null));
+  const t = PREREG_T[lang];
+
+  function changeLang(next: Lang) {
+    setLang(next);
+    storeLang(next);
+  }
 
   // El campo "División" solo aparece si la empresa elegida tiene divisiones
   // registradas en la base de datos — nada hardcodeado a un nombre de
@@ -80,7 +94,7 @@ export default function PreRegistro() {
     setError(null);
 
     if (!form.companyId) {
-      setError("Selecciona la empresa que visitas.");
+      setError(t.errorCompany);
       return;
     }
 
@@ -88,7 +102,7 @@ export default function PreRegistro() {
       form.visitType === OTROS_SENTINEL ? form.customVisitType.trim() : form.visitType;
 
     if (!resolvedVisitType) {
-      setError("Escribe el tipo de visita.");
+      setError(t.errorVisitType);
       return;
     }
 
@@ -101,27 +115,45 @@ export default function PreRegistro() {
     setSubmitting(false);
 
     if (invokeError || data?.error) {
-      setError(data?.error ?? (await edgeFunctionErrorMessage(invokeError, "No se pudo crear el pre-registro. Intenta de nuevo.")));
+      const rawError = data?.error ?? (await edgeFunctionErrorMessage(invokeError, t.errorFallback));
+      setError(translateServerError(rawError, lang));
       return;
     }
 
-    navigate(`/pre-registro/confirmacion/${data.token}`);
+    navigate(`/pre-registro/confirmacion/${data.token}?lang=${lang}`);
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper p-6">
       <div className="w-full max-w-md rounded-lg border border-line bg-card p-8 shadow-sm">
-        <img src="/logo.png" alt="PassHub" className="mb-3 h-14 w-auto" />
-        <h1 className="font-display text-xl font-bold text-ink">PassHub</h1>
-        <p className="mb-1 text-sm font-medium text-ink-soft">Pre-registro de visita</p>
-        <p className="mb-6 text-sm text-ink-soft">
-          Llena tus datos antes de llegar. Recibirás un código QR que deberás mostrar en recepción.
-        </p>
+        <div className="mb-3 flex items-start justify-between">
+          <img src="/logo.png" alt="PassHub" className="h-14 w-auto" />
+          <div className="flex gap-1 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => changeLang("es")}
+              className={lang === "es" ? "text-accent" : "text-ink-soft hover:text-ink"}
+            >
+              ES
+            </button>
+            <span className="text-ink-soft">/</span>
+            <button
+              type="button"
+              onClick={() => changeLang("en")}
+              className={lang === "en" ? "text-accent" : "text-ink-soft hover:text-ink"}
+            >
+              EN
+            </button>
+          </div>
+        </div>
+        <h1 className="font-display text-xl font-bold text-ink">{t.appName}</h1>
+        <p className="mb-1 text-sm font-medium text-ink-soft">{t.subtitle}</p>
+        <p className="mb-6 text-sm text-ink-soft">{t.intro}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="visitorName" className="mb-1 block text-sm font-medium text-ink-soft">
-              Tu nombre
+              {t.visitorName}
             </label>
             <input
               id="visitorName"
@@ -135,7 +167,7 @@ export default function PreRegistro() {
 
           <div>
             <label htmlFor="visitorCompany" className="mb-1 block text-sm font-medium text-ink-soft">
-              Tu empresa
+              {t.visitorCompany}
             </label>
             <AutoCompleteInput
               id="visitorCompany"
@@ -149,7 +181,7 @@ export default function PreRegistro() {
 
           <div>
             <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
-              Teléfono
+              {t.visitorPhone}
             </label>
             <input
               id="visitorPhone"
@@ -163,7 +195,7 @@ export default function PreRegistro() {
 
           <div>
             <label htmlFor="visitorEmail" className="mb-1 block text-sm font-medium text-ink-soft">
-              Correo electrónico
+              {t.visitorEmail}
             </label>
             <input
               id="visitorEmail"
@@ -177,7 +209,7 @@ export default function PreRegistro() {
 
           <div>
             <label htmlFor="company" className="mb-1 block text-sm font-medium text-ink-soft">
-              Empresa que visitas
+              {t.company}
             </label>
             <select
               id="company"
@@ -187,7 +219,7 @@ export default function PreRegistro() {
               className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             >
               <option value="" disabled>
-                Selecciona una empresa
+                {t.companyPlaceholder}
               </option>
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>
@@ -199,7 +231,7 @@ export default function PreRegistro() {
 
           <div>
             <label htmlFor="visitType" className="mb-1 block text-sm font-medium text-ink-soft">
-              Tipo de visita
+              {t.visitType}
             </label>
             <select
               id="visitType"
@@ -209,21 +241,21 @@ export default function PreRegistro() {
               className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             >
               <option value="" disabled>
-                Selecciona una opción
+                {t.visitTypePlaceholder}
               </option>
               {visitTypes.map((option) => (
                 <option key={option.id} value={option.name}>
                   {option.name}
                 </option>
               ))}
-              <option value={OTROS_SENTINEL}>Otros</option>
+              <option value={OTROS_SENTINEL}>{t.otros}</option>
             </select>
           </div>
 
           {form.visitType === OTROS_SENTINEL && (
             <div>
               <label htmlFor="customVisitType" className="mb-1 block text-sm font-medium text-ink-soft">
-                Especifica el tipo de visita
+                {t.customVisitType}
               </label>
               <input
                 id="customVisitType"
@@ -238,7 +270,7 @@ export default function PreRegistro() {
 
           <div>
             <label htmlFor="hasVehicle" className="mb-1 block text-sm font-medium text-ink-soft">
-              ¿Traes vehículo?
+              {t.hasVehicle}
             </label>
             <select
               id="hasVehicle"
@@ -256,10 +288,10 @@ export default function PreRegistro() {
               className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
             >
               <option value="" disabled>
-                Selecciona una opción
+                {t.visitTypePlaceholder}
               </option>
-              <option value="si">Sí</option>
-              <option value="no">No</option>
+              <option value="si">{t.yes}</option>
+              <option value="no">{t.no}</option>
             </select>
           </div>
 
@@ -267,7 +299,7 @@ export default function PreRegistro() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <label htmlFor="vehiclePlate" className="mb-1 block text-sm font-medium text-ink-soft">
-                  Placas
+                  {t.vehiclePlate}
                 </label>
                 <input
                   id="vehiclePlate"
@@ -280,7 +312,7 @@ export default function PreRegistro() {
               </div>
               <div>
                 <label htmlFor="vehicleColor" className="mb-1 block text-sm font-medium text-ink-soft">
-                  Color
+                  {t.vehicleColor}
                 </label>
                 <input
                   id="vehicleColor"
@@ -293,7 +325,7 @@ export default function PreRegistro() {
               </div>
               <div>
                 <label htmlFor="vehicleModel" className="mb-1 block text-sm font-medium text-ink-soft">
-                  Modelo
+                  {t.vehicleModel}
                 </label>
                 <input
                   id="vehicleModel"
@@ -310,7 +342,7 @@ export default function PreRegistro() {
           {hasDivisions && (
             <div>
               <label htmlFor="division" className="mb-1 block text-sm font-medium text-ink-soft">
-                División
+                {t.division}
               </label>
               <select
                 id="division"
@@ -320,7 +352,7 @@ export default function PreRegistro() {
                 className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
               >
                 <option value="" disabled>
-                  Selecciona una división
+                  {t.divisionPlaceholder}
                 </option>
                 {companyDivisions.map((option) => (
                   <option key={option.id} value={option.name}>
@@ -333,7 +365,7 @@ export default function PreRegistro() {
 
           <div>
             <label htmlFor="reason" className="mb-1 block text-sm font-medium text-ink-soft">
-              Motivo
+              {t.reason}
             </label>
             <input
               id="reason"
@@ -348,7 +380,7 @@ export default function PreRegistro() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="visitDate" className="mb-1 block text-sm font-medium text-ink-soft">
-                Fecha de visita
+                {t.visitDate}
               </label>
               <input
                 id="visitDate"
@@ -363,7 +395,7 @@ export default function PreRegistro() {
 
             <div>
               <label htmlFor="visitTime" className="mb-1 block text-sm font-medium text-ink-soft">
-                Hora
+                {t.visitTime}
               </label>
               <input
                 id="visitTime"
@@ -383,7 +415,7 @@ export default function PreRegistro() {
             disabled={submitting}
             className="w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-50"
           >
-            {submitting ? "Enviando..." : "Generar pre-registro"}
+            {submitting ? t.submitting : t.submit}
           </button>
         </form>
       </div>
