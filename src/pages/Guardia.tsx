@@ -106,7 +106,7 @@ export default function Guardia() {
   }
 
   return (
-    <div className="min-h-screen bg-paper">
+    <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-10 bg-ink text-white">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
@@ -139,7 +139,7 @@ export default function Guardia() {
         </div>
 
         {!loading && visits.length === 0 && (
-          <p className="rounded-lg border border-line bg-card p-6 text-center text-sm text-ink-soft">
+          <p className="rounded-lg border border-[#b8b8b8] bg-white p-6 text-center text-sm text-ink-soft">
             No hay visitantes dentro en este momento.
           </p>
         )}
@@ -150,9 +150,9 @@ export default function Guardia() {
               key={visit.id}
               type="button"
               onClick={() => openDetail(visit)}
-              className="flex flex-col items-center overflow-hidden rounded-xl border border-line bg-card p-3 text-center shadow-sm transition-transform active:scale-95"
+              className="flex flex-col items-center overflow-hidden rounded-xl border border-[#b8b8b8] bg-white p-3 text-center shadow-sm transition-transform active:scale-95"
             >
-              <div className="mb-2 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-paper">
+              <div className="mb-2 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-[#f7f7f7]">
                 {photoUrls[visit.id] ? (
                   <img
                     src={photoUrls[visit.id]}
@@ -181,7 +181,7 @@ export default function Guardia() {
       </div>
 
       {selectedVisit && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-paper">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-white">
           <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-ink px-4 py-3 text-white">
             <h3 className="truncate font-display text-base font-bold">{selectedVisit.visitor_name}</h3>
             <button
@@ -197,7 +197,7 @@ export default function Guardia() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <p className="mb-1 text-xs font-medium text-ink-soft">Foto del visitante</p>
-                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-line bg-card">
+                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-[#b8b8b8] bg-white">
                   {photoUrls[selectedVisit.id] ? (
                     <img
                       src={photoUrls[selectedVisit.id]}
@@ -212,7 +212,7 @@ export default function Guardia() {
 
               <div>
                 <p className="mb-1 text-xs font-medium text-ink-soft">INE</p>
-                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-line bg-card">
+                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-[#b8b8b8] bg-white">
                   {idPhotoLoading && <span className="text-sm text-ink-soft">Cargando...</span>}
                   {idPhotoError && <span className="p-3 text-center text-sm text-danger">{idPhotoError}</span>}
                   {idPhotoUrl && (
@@ -222,7 +222,7 @@ export default function Guardia() {
               </div>
             </div>
 
-            <dl className="mt-4 divide-y divide-line rounded-lg border border-line bg-card px-4 text-sm">
+            <dl className="mt-4 divide-y divide-line rounded-lg border border-[#b8b8b8] bg-white px-4 text-sm">
               <div className="flex justify-between py-3">
                 <dt className="text-ink-soft">Folio</dt>
                 <dd className="font-medium text-ink">{selectedVisit.folio}</dd>
