@@ -412,14 +412,26 @@ select.input-field:focus-visible {
    .btn-primary no necesita ajuste, ya es fondo oscuro con texto blanco
    en ambos temas). */
 .dark .card,
-.dark .modal,
-.dark .input-field {
+.dark .modal {
   background: #1a1f27;
   border-color: #2b313b;
   color: #f3f5f7;
 }
+/* .input-field necesita un tono más claro que .card: con el mismo
+   #1a1f27 quedaba casi idéntico al fondo de la página (--paper oscuro,
+   #12161c) y los campos vacíos se veían como "huecos" sin relleno,
+   sobre todo con el borde rojo de campo requerido encima ("dale un
+   mejor color... rellena"). Se reutiliza #3a4048 (mismo tono ya usado
+   en bg-ink-soft oscuro para superficies elevadas, ver arriba) para que
+   el campo se note claramente "lleno" y distinguible de la tarjeta y
+   de la página, sin inventar un color nuevo. */
+.dark .input-field {
+  background: #3a4048;
+  border-color: #4b525c;
+  color: #f3f5f7;
+}
 .dark .input-field::placeholder {
-  color: #9aa3af;
+  color: #c3c9d1;
 }
 .dark .btn-secondary {
   background: #1a1f27;

@@ -20,6 +20,26 @@ const ACTION_LABELS: Record<string, string> = {
   update: "Visita actualizada",
 };
 
+// companies/divisions/visit_types comparten las acciones genéricas
+// "create"/"update" con visits (mismo log_audit) — se distinguen por
+// entity para no reusar la etiqueta de "Visita registrada/actualizada".
+const CATALOG_ENTITY_LABELS: Record<string, string> = {
+  companies: "Empresa",
+  divisions: "División",
+  visit_types: "Tipo de visita",
+};
+
+function isCatalogEntity(entity: string) {
+  return entity in CATALOG_ENTITY_LABELS;
+}
+
+function catalogActionLabel(row: AuditRow): string {
+  const noun = CATALOG_ENTITY_LABELS[row.entity];
+  if (row.action === "create") return `${noun} creada`;
+  if (row.action === "update") return `${noun} actualizada`;
+  return row.action;
+}
+
 // created_at es un timestamp en UTC; para filtrar por día de calendario
 // LOCAL se calculan los límites del día local y se convierten a UTC. Mismo
 // criterio que Historial.tsx/AnalyticsSection.tsx.
@@ -51,10 +71,20 @@ function summarizeDetail(row: AuditRow): string {
       return role ? `Rol: ${ROLE_LABELS[role] ?? role}` : "—";
     }
     case "create": {
+      if (isCatalogEntity(row.entity)) {
+        const name = (detail as { name?: string }).name;
+        return name ? `Nombre: ${name}` : "—";
+      }
       const visitorName = (detail as { visitor_name?: string }).visitor_name;
       return visitorName ? `Visitante: ${visitorName}` : "—";
     }
     case "update": {
+      if (isCatalogEntity(row.entity)) {
+        const oldActive = (detail as { old?: { active?: boolean } }).old?.active;
+        const newActive = (detail as { new?: { active?: boolean } }).new?.active;
+        if (oldActive !== newActive) return newActive ? "Reactivada" : "Desactivada";
+        return "—";
+      }
       const oldStatus = (detail as { old?: { status?: string } }).old?.status;
       const newStatus = (detail as { new?: { status?: string } }).new?.status;
       return oldStatus && newStatus && oldStatus !== newStatus
@@ -74,7 +104,7 @@ export default function AuditLog() {
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [category, setCategory] = useState<"cuentas" | "visitas" | "todas">("cuentas");
+  const [category, setCategory] = useState<"cuentas" | "visitas" | "catalogos" | "todas">("cuentas");
   const [actorId, setActorId] = useState("");
 
   useEffect(() => {
@@ -113,6 +143,7 @@ export default function AuditLog() {
       if (dateTo) query = query.lt("created_at", localDayRangeUtc(dateTo).endIso);
       if (category === "cuentas") query = query.in("entity", ["profiles", "user_roles"]);
       if (category === "visitas") query = query.eq("entity", "visits");
+      if (category === "catalogos") query = query.in("entity", ["companies", "divisions", "visit_types"]);
       if (actorId) query = query.eq("actor_id", actorId);
 
       const { data } = await query;
@@ -124,6 +155,11 @@ export default function AuditLog() {
 
   const targetLabel = useMemo(
     () => (row: AuditRow) => {
+      if (isCatalogEntity(row.entity)) {
+        const detail = row.detail as { name?: string; new?: { name?: string }; old?: { name?: string } } | null;
+        const name = detail?.name ?? detail?.new?.name ?? detail?.old?.name;
+        return name ?? "—";
+      }
       if (row.entity !== "profiles" && row.entity !== "user_roles") return "—";
       const profile = row.entity_id ? profilesById[row.entity_id] : null;
       if (profile) return `${profile.full_name} (${profile.email})`;
@@ -168,6 +204,7 @@ export default function AuditLog() {
           >
             <option value="cuentas">Cuentas</option>
             <option value="visitas">Visitas</option>
+            <option value="catalogos">Catálogos</option>
             <option value="todas">Todas</option>
           </select>
         </div>
@@ -205,7 +242,7 @@ export default function AuditLog() {
               <th className="px-4 py-3 font-medium">Fecha</th>
               <th className="px-4 py-3 font-medium">Actor</th>
               <th className="px-4 py-3 font-medium">Acción</th>
-              <th className="px-4 py-3 font-medium">Cuenta afectada</th>
+              <th className="px-4 py-3 font-medium">Elemento afectado</th>
               <th className="px-4 py-3 font-medium">Detalle</th>
             </tr>
           </thead>
@@ -223,7 +260,9 @@ export default function AuditLog() {
                 <tr key={row.id} className="border-b border-line last:border-0">
                   <td className="whitespace-nowrap px-4 py-3 text-ink-soft">{formatDateTime(row.created_at)}</td>
                   <td className="px-4 py-3 text-ink">{actor ? actor.full_name : "Sistema"}</td>
-                  <td className="px-4 py-3 text-ink-soft">{ACTION_LABELS[row.action] ?? row.action}</td>
+                  <td className="px-4 py-3 text-ink-soft">
+                    {isCatalogEntity(row.entity) ? catalogActionLabel(row) : ACTION_LABELS[row.action] ?? row.action}
+                  </td>
                   <td className="px-4 py-3 text-ink-soft">{targetLabel(row)}</td>
                   <td className="px-4 py-3 text-ink-soft">{summarizeDetail(row)}</td>
                 </tr>
