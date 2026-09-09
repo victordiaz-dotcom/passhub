@@ -134,11 +134,10 @@ export default function Historial() {
 
     setLoading(true);
 
-    // Admin ve todo (todas las empresas, todas las recepcionistas) por RLS.
-    // Recepción también podría leer todo lo de su empresa por RLS, pero aquí
-    // se acota además a lo suyo: las visitas que ella registró O a las que
-    // les marcó la salida (puede cerrar cualquiera, no solo las que
-    // registró) — este historial es de "lo mío", no de toda la empresa.
+    // Recepción ve todas las visitas, igual que admin — no solo las que
+    // ella registró o cerró. RLS ya lo permite (visits_select no filtra
+    // por dueño para admin/recepción/superadmin), esto solo confirma que
+    // el frontend no le agrega una restricción de más.
     let query = supabase
       .from("visits")
       .select(
@@ -150,9 +149,7 @@ export default function Historial() {
       query = query.eq("visit_date", date);
     }
 
-    if (!isAdmin) {
-      query = query.or(`created_by.eq.${session.user.id},checked_out_by.eq.${session.user.id}`);
-    } else if (creatorFilter) {
+    if (isAdmin && creatorFilter) {
       query = query.eq("created_by", creatorFilter);
     }
 
@@ -293,9 +290,7 @@ export default function Historial() {
       <div className="mb-6">
         <h1 className="font-display text-xl font-bold text-ink">Historial de visitas</h1>
         <p className="text-sm text-ink-soft">
-          {isAdmin
-            ? "Todas las empresas y recepcionistas."
-            : "Las visitas que tú registraste o a las que les marcaste la salida."}
+          {isAdmin ? "Todas las empresas y recepcionistas." : "Todas las visitas, sin importar quién las registró."}
         </p>
       </div>
 
