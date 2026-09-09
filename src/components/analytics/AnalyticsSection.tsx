@@ -766,7 +766,7 @@ export function AnalyticsSection() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ink-soft">
           Cada gráfica tiene su propio color y su propio rango de fechas — cámbialos directamente en la
           gráfica que quieras ajustar.

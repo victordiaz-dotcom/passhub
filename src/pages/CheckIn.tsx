@@ -453,7 +453,7 @@ export default function CheckIn() {
   return (
     <div className="min-h-screen bg-paper">
       <div className="mx-auto max-w-6xl px-6 py-6">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
           <h1 className="font-display text-xl font-bold text-ink">Registrar visita</h1>
           <button
             type="button"

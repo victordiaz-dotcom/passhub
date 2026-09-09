@@ -55,7 +55,7 @@ export default function Employees() {
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <h1 className="font-display text-xl font-bold text-ink">Colaboradores</h1>
         <button
           type="button"

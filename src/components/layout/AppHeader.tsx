@@ -16,8 +16,14 @@ export function AppHeader() {
   const roleLabel = roles.map((role) => ROLE_LABELS[role] ?? role).join(", ");
 
   return (
-    <div className="fixed inset-x-0 top-0 z-50 bg-ink text-white">
-      <header className="flex h-14 items-center justify-between px-4">
+    // sticky en vez de fixed: el header ocupa su alto real dentro del flujo
+    // del documento (empuja el contenido, en vez de superponerse encima).
+    // Con fixed, Layout.tsx tenía que adivinar un padding-top fijo para el
+    // <main> — en pantallas angostas, donde el menú necesita más de una
+    // línea, esa altura ya no coincidía y el contenido quedaba tapado o
+    // separado de más. Mismo patrón que ya usa Guardia.tsx.
+    <div className="sticky top-0 z-50 bg-ink text-white">
+      <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
         <span className="flex items-center gap-2 font-display text-lg font-bold">
           <img src="/logo.png" alt="PassHub" className="h-7 w-auto" />
           PassHub
@@ -25,7 +31,7 @@ export function AppHeader() {
             {APP_VERSION}
           </span>
         </span>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <ThemeToggle />
           <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
             {firstName}
@@ -41,7 +47,7 @@ export function AppHeader() {
         </div>
       </header>
 
-      <nav className="flex h-12 items-center gap-4 border-t border-white/10 px-4">
+      <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 px-4 py-2">
         <NavLink to="/" end className={navLinkClass}>
           Registrar visita
         </NavLink>

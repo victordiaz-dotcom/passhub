@@ -182,12 +182,12 @@ export default function Guardia() {
 
       {selectedVisit && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-paper">
-          <div className="sticky top-0 z-10 flex items-center justify-between bg-ink px-4 py-3 text-white">
-            <h3 className="font-display text-base font-bold">{selectedVisit.visitor_name}</h3>
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-ink px-4 py-3 text-white">
+            <h3 className="truncate font-display text-base font-bold">{selectedVisit.visitor_name}</h3>
             <button
               type="button"
               onClick={closeDetail}
-              className="text-sm font-medium text-white/70 hover:text-white"
+              className="shrink-0 text-sm font-medium text-white/70 hover:text-white"
             >
               Cerrar
             </button>
