@@ -10,12 +10,21 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  // Se separa del check de sesión: sin esto, "loading" pasaba a false en
+  // cuanto se resolvía getSession(), ANTES de que profiles/user_roles
+  // terminaran de cargar — cualquier componente que decidiera algo por rol
+  // en ese instante (ProtectedRoute, HomeRoute) lo hacía con roles=[]
+  // todavía. Para admin/recepción no se notaba porque la vista "por
+  // defecto" ya era la correcta; para guardia significaba renderizar de
+  // entrada la pantalla de check-in de escritorio en vez del panel de
+  // guardia.
+  const [rolesLoading, setRolesLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      setLoading(false);
+      setSessionLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -29,21 +38,20 @@ export function useAuth() {
     if (!session?.user) {
       setProfile(null);
       setRoles([]);
+      setRolesLoading(false);
       return;
     }
 
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-      .then(({ data }) => setProfile(data));
+    setRolesLoading(true);
 
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", session.user.id)
-      .then(({ data }) => setRoles((data ?? []).map((r) => r.role)));
+    Promise.all([
+      supabase.from("profiles").select("*").eq("id", session.user.id).single(),
+      supabase.from("user_roles").select("role").eq("user_id", session.user.id),
+    ]).then(([profileResult, rolesResult]) => {
+      setProfile(profileResult.data);
+      setRoles((rolesResult.data ?? []).map((r) => r.role));
+      setRolesLoading(false);
+    });
   }, [session?.user?.id]);
 
   const signOut = () => supabase.auth.signOut();
@@ -62,7 +70,7 @@ export function useAuth() {
     isRecepcion: roles.includes("recepcion"),
     isSuperadmin: roles.includes("superadmin"),
     isGuardia: roles.includes("guardia"),
-    loading,
+    loading: sessionLoading || rolesLoading,
     signOut,
   };
 }

@@ -509,7 +509,7 @@ export default function Historial() {
         <div>
           {checkoutError && <p className="mb-3 text-sm text-danger">{checkoutError}</p>}
           <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[1200px] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-ink-soft">
                 <th className="px-4 py-3 font-medium">Folio</th>
@@ -586,7 +586,7 @@ export default function Historial() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-sm">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[1000px] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-ink-soft">
                 <th className="px-4 py-3 font-medium">Visitante</th>

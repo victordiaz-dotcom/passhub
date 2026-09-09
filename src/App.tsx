@@ -18,9 +18,13 @@ import AuditLog from "@/pages/AuditLog";
 
 // Guardia es de solo lectura y no tiene nada que hacer en el check-in
 // completo: si la cuenta solo tiene ese rol, "/" le muestra la pantalla de
-// guardia en vez de CheckIn.
+// guardia en vez de CheckIn. Hay que esperar "loading" (que ahora incluye
+// la carga de roles, no solo de la sesión — ver useAuth.ts): sin esto, el
+// primer render siempre ocurre con roles=[] y muestra CheckIn de entrada,
+// aunque la cuenta sea de guardia.
 function HomeRoute() {
-  const { isGuardia, isAdmin, isRecepcion } = useAuth();
+  const { isGuardia, isAdmin, isRecepcion, loading } = useAuth();
+  if (loading) return null;
   if (isGuardia && !isAdmin && !isRecepcion) return <Guardia />;
   return (
     <Layout>
