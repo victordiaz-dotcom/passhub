@@ -129,6 +129,19 @@ Deno.serve(async (req) => {
     return jsonResponse({ visitTypes: data ?? [] });
   }
 
+  // Config del formulario público (qué campos mostrar/pedir obligatorio, en
+  // qué orden, y los campos de texto libre que el admin haya agregado desde
+  // Catálogos). Solo las visibles: una fila oculta ni siquiera se anuncia al
+  // front.
+  if (action === "fieldConfig") {
+    const { data } = await adminClient
+      .from("preregistro_fields")
+      .select("id, kind, field_key, required, sort_order, label_es, label_en")
+      .eq("visible", true)
+      .order("sort_order");
+    return jsonResponse({ fields: data ?? [] });
+  }
+
   if (action === "visitorCompanies") {
     // Nombres de empresas de visitantes ya usados en visitas reales,
     // ordenados por frecuencia — el front los combina con una lista de
@@ -170,7 +183,7 @@ Deno.serve(async (req) => {
     const { data, error } = await adminClient
       .from("visit_preregistrations")
       .select(
-        "visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name)"
+        "visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, custom_answers, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name)"
       )
       .eq("access_token", token)
       .maybeSingle();
@@ -213,15 +226,31 @@ Deno.serve(async (req) => {
   const vehicleColor = body.vehicleColor;
   const vehicleModel = body.vehicleModel;
 
+  // visitorName, companyId y fecha/hora son estructurales al pre-registro y
+  // siempre obligatorios; el resto de los campos "builtin" pueden marcarse
+  // como opcionales/ocultos desde Catálogos → Campos de pre-registro (ver
+  // migración 0055), así que su obligatoriedad se resuelve aquí en vez de
+  // estar fija en el código.
+  const { data: fieldRows } = await adminClient.from("preregistro_fields").select("*");
+  const fieldByKey = new Map((fieldRows ?? []).map((f) => [f.field_key as string, f]));
+
+  function isRequired(key: string, fallback: boolean): boolean {
+    const f = fieldByKey.get(key);
+    if (!f) return fallback;
+    if (!f.visible) return false;
+    return f.required;
+  }
+
+  const visitorCompanyRequired = isRequired("visitorCompany", true);
+  const visitorPhoneRequired = isRequired("visitorPhone", true);
+  const visitorEmailRequired = isRequired("visitorEmail", true);
+  const visitTypeRequired = isRequired("visitType", true);
+  const hasVehicleRequired = isRequired("hasVehicle", true);
+  const reasonRequired = isRequired("reason", true);
+
   if (
     typeof visitorName !== "string" ||
     !visitorName.trim() ||
-    typeof visitorCompany !== "string" ||
-    !visitorCompany.trim() ||
-    typeof visitorPhone !== "string" ||
-    !visitorPhone.trim() ||
-    typeof visitorEmail !== "string" ||
-    !visitorEmail.trim() ||
     typeof companyId !== "string" ||
     !companyId ||
     (hostEmployeeId !== undefined && hostEmployeeId !== null && typeof hostEmployeeId !== "string") ||
@@ -229,17 +258,22 @@ Deno.serve(async (req) => {
     !visitDate ||
     typeof visitTime !== "string" ||
     !visitTime.trim() ||
-    typeof visitType !== "string" ||
-    !visitType.trim() ||
-    typeof reason !== "string" ||
-    !reason.trim() ||
-    (hasVehicle !== "si" && hasVehicle !== "no")
+    (visitorCompanyRequired && (typeof visitorCompany !== "string" || !visitorCompany.trim())) ||
+    (visitorPhoneRequired && (typeof visitorPhone !== "string" || !visitorPhone.trim())) ||
+    (visitorEmailRequired && (typeof visitorEmail !== "string" || !visitorEmail.trim())) ||
+    (visitTypeRequired && (typeof visitType !== "string" || !visitType.trim())) ||
+    (hasVehicleRequired && hasVehicle !== "si" && hasVehicle !== "no") ||
+    (reasonRequired && (typeof reason !== "string" || !reason.trim()))
   ) {
     return jsonResponse({ error: "Faltan campos requeridos." }, 400);
   }
 
+  // Si "¿traes vehículo?" no es obligatorio y no se contestó, se trata como
+  // "no" (sin datos de vehículo) en vez de rechazar la solicitud.
+  const vehicleAnswer = hasVehicle === "si" ? "si" : "no";
+
   if (
-    hasVehicle === "si" &&
+    vehicleAnswer === "si" &&
     (typeof vehiclePlate !== "string" ||
       !vehiclePlate.trim() ||
       typeof vehicleColor !== "string" ||
@@ -248,6 +282,27 @@ Deno.serve(async (req) => {
       !vehicleModel.trim())
   ) {
     return jsonResponse({ error: "Faltan los datos del vehículo (placas, color, modelo)." }, 400);
+  }
+
+  // Campos de texto libre que el admin haya agregado. La etiqueta se
+  // congela en el momento del envío (ver comentario en la migración 0055).
+  const customFieldRows = (fieldRows ?? []).filter((f) => f.kind === "custom" && f.visible);
+  const customAnswersInput =
+    body.customAnswers && typeof body.customAnswers === "object" && !Array.isArray(body.customAnswers)
+      ? (body.customAnswers as Record<string, unknown>)
+      : {};
+
+  const customAnswersToStore: Record<string, { label_es: string | null; label_en: string | null; value: string }> =
+    {};
+  for (const f of customFieldRows) {
+    const raw = customAnswersInput[f.field_key];
+    const value = typeof raw === "string" ? raw.trim() : "";
+    if (f.required && !value) {
+      return jsonResponse({ error: "Faltan campos requeridos." }, 400);
+    }
+    if (value) {
+      customAnswersToStore[f.field_key] = { label_es: f.label_es, label_en: f.label_en, value };
+    }
   }
 
   if (visitDate < todayIso()) {
@@ -291,18 +346,19 @@ Deno.serve(async (req) => {
       company_id: companyId,
       visitor_name: visitorName,
       visitor_company: typeof visitorCompany === "string" && visitorCompany ? visitorCompany : null,
-      visitor_phone: visitorPhone,
-      visitor_email: visitorEmail,
+      visitor_phone: typeof visitorPhone === "string" && visitorPhone ? visitorPhone : null,
+      visitor_email: typeof visitorEmail === "string" && visitorEmail ? visitorEmail : null,
       host_employee_id: hasHostEmployee ? hostEmployeeId : null,
-      visit_type: visitType,
+      visit_type: typeof visitType === "string" && visitType ? visitType : null,
       reason: typeof reason === "string" && reason ? reason : null,
       division: typeof division === "string" && division ? division : null,
       visit_date: visitDate,
       visit_time: typeof visitTime === "string" && visitTime ? visitTime : null,
-      has_vehicle: hasVehicle === "si",
-      vehicle_plate: hasVehicle === "si" ? vehiclePlate : null,
-      vehicle_color: hasVehicle === "si" ? vehicleColor : null,
-      vehicle_model: hasVehicle === "si" ? vehicleModel : null,
+      has_vehicle: vehicleAnswer === "si",
+      vehicle_plate: vehicleAnswer === "si" ? vehiclePlate : null,
+      vehicle_color: vehicleAnswer === "si" ? vehicleColor : null,
+      vehicle_model: vehicleAnswer === "si" ? vehicleModel : null,
+      custom_answers: Object.keys(customAnswersToStore).length ? customAnswersToStore : null,
     })
     .select("access_token")
     .single();

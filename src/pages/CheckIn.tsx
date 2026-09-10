@@ -118,6 +118,9 @@ export default function CheckIn() {
   const [preregistrationDate, setPreregistrationDate] = useState<string | null>(null);
   const [preregistrationExpiresOn, setPreregistrationExpiresOn] = useState<string | null>(null);
   const [preregistrationReused, setPreregistrationReused] = useState(false);
+  const [preregistrationCustomAnswers, setPreregistrationCustomAnswers] = useState<
+    Record<string, { label_es: string | null; label_en: string | null; value: string }> | null
+  >(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
 
@@ -327,6 +330,9 @@ export default function CheckIn() {
     setPreregistrationDate(data.visit_date);
     setPreregistrationExpiresOn(expiresOn);
     setPreregistrationReused(data.status === "usada");
+    setPreregistrationCustomAnswers(
+      (data as { custom_answers?: typeof preregistrationCustomAnswers }).custom_answers ?? null
+    );
   }
 
   function resetForm() {
@@ -354,6 +360,7 @@ export default function CheckIn() {
     setPreregistrationDate(null);
     setPreregistrationExpiresOn(null);
     setPreregistrationReused(false);
+    setPreregistrationCustomAnswers(null);
   }
 
   function startNewRegistration() {
@@ -555,6 +562,16 @@ export default function CheckIn() {
                       ? ` Vigente para reingresos hasta el ${formatDate(preregistrationExpiresOn)}.`
                       : ""}
                   </p>
+                  {preregistrationCustomAnswers && Object.keys(preregistrationCustomAnswers).length > 0 && (
+                    <dl className="mt-2 space-y-0.5">
+                      {Object.values(preregistrationCustomAnswers).map((answer, i) => (
+                        <div key={i} className="flex gap-1">
+                          <dt className="font-medium">{answer.label_es || answer.label_en}:</dt>
+                          <dd>{answer.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
                   <button
                     type="button"
                     onClick={resetForm}

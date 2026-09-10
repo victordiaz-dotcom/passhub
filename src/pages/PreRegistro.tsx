@@ -16,6 +16,15 @@ import {
 type Company = { id: string; name: string };
 type Division = { id: string; company_id: string; name: string };
 type VisitType = { id: string; name: string };
+type FieldConfig = {
+  id: string;
+  kind: "builtin" | "custom";
+  field_key: string;
+  required: boolean;
+  sort_order: number;
+  label_es: string | null;
+  label_en: string | null;
+};
 
 const OTROS_SENTINEL = "__otros__";
 
@@ -47,6 +56,8 @@ export default function PreRegistro() {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
   const [visitorCompanySuggestions, setVisitorCompanySuggestions] = useState<string[]>([]);
+  const [fields, setFields] = useState<FieldConfig[]>([]);
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +137,232 @@ export default function PreRegistro() {
       );
   }, []);
 
+  useEffect(() => {
+    supabase.functions
+      .invoke("public-preregister", { body: { action: "fieldConfig" } })
+      .then(({ data }) => setFields(data?.fields ?? []));
+  }, []);
+
+  // Etiqueta de un campo configurable: usa el override que haya puesto el
+  // admin (en el idioma activo) si existe, si no cae al texto por defecto
+  // de esta pantalla (o, para campos "custom" sin traducción a un idioma,
+  // al otro idioma antes que mostrar la clave interna).
+  function fieldLabel(field: FieldConfig, fallback?: string) {
+    const override = lang === "es" ? field.label_es : field.label_en;
+    if (override && override.trim()) return override;
+    if (fallback) return fallback;
+    return field.label_es || field.label_en || field.field_key;
+  }
+
+  const sortedFields = [...fields].sort((a, b) => a.sort_order - b.sort_order);
+
+  // Los campos "builtin" configurables (mostrar/ocultar, obligatorio,
+  // orden) y los "custom" que haya agregado el admin se renderizan
+  // intercalados según sort_order. visitorName, la empresa, división y
+  // fecha/hora NO pasan por aquí — son fijos (ver JSX más abajo).
+  function renderField(field: FieldConfig) {
+    if (field.kind === "custom") {
+      const label = fieldLabel(field);
+      return (
+        <div key={field.id}>
+          <label className="mb-1 block text-sm font-medium text-ink-soft">{label}</label>
+          <input
+            type="text"
+            required={field.required}
+            value={customAnswers[field.field_key] ?? ""}
+            onChange={(e) => setCustomAnswers({ ...customAnswers, [field.field_key]: e.target.value })}
+            className="input-field h-auto py-2"
+          />
+        </div>
+      );
+    }
+
+    switch (field.field_key) {
+      case "visitorCompany":
+        return (
+          <div key={field.id}>
+            <label htmlFor="visitorCompany" className="mb-1 block text-sm font-medium text-ink-soft">
+              {fieldLabel(field, t.visitorCompany)}
+            </label>
+            <AutoCompleteInput
+              id="visitorCompany"
+              required={field.required}
+              suggestions={visitorCompanySuggestions}
+              value={form.visitorCompany}
+              onChange={(visitorCompany) => setForm({ ...form, visitorCompany })}
+              className="input-field h-auto py-2"
+            />
+          </div>
+        );
+      case "visitorPhone":
+        return (
+          <div key={field.id}>
+            <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
+              {fieldLabel(field, t.visitorPhone)}
+            </label>
+            <input
+              id="visitorPhone"
+              type="tel"
+              required={field.required}
+              value={form.visitorPhone}
+              onChange={(e) => setForm({ ...form, visitorPhone: e.target.value })}
+              className="input-field h-auto py-2"
+            />
+          </div>
+        );
+      case "visitorEmail":
+        return (
+          <div key={field.id}>
+            <label htmlFor="visitorEmail" className="mb-1 block text-sm font-medium text-ink-soft">
+              {fieldLabel(field, t.visitorEmail)}
+            </label>
+            <input
+              id="visitorEmail"
+              type="email"
+              required={field.required}
+              value={form.visitorEmail}
+              onChange={(e) => setForm({ ...form, visitorEmail: e.target.value })}
+              className="input-field h-auto py-2"
+            />
+          </div>
+        );
+      case "visitType":
+        return (
+          <div key={field.id} className="space-y-4">
+            <div>
+              <label htmlFor="visitType" className="mb-1 block text-sm font-medium text-ink-soft">
+                {fieldLabel(field, t.visitType)}
+              </label>
+              <select
+                id="visitType"
+                required={field.required}
+                value={form.visitType}
+                onChange={(e) => setForm({ ...form, visitType: e.target.value, customVisitType: "" })}
+                className="input-field h-auto py-2"
+              >
+                <option value="" disabled>
+                  {t.visitTypePlaceholder}
+                </option>
+                {visitTypes.map((option) => (
+                  <option key={option.id} value={option.name}>
+                    {option.name}
+                  </option>
+                ))}
+                <option value={OTROS_SENTINEL}>{t.otros}</option>
+              </select>
+            </div>
+            {form.visitType === OTROS_SENTINEL && (
+              <div>
+                <label htmlFor="customVisitType" className="mb-1 block text-sm font-medium text-ink-soft">
+                  {t.customVisitType}
+                </label>
+                <input
+                  id="customVisitType"
+                  type="text"
+                  required
+                  value={form.customVisitType}
+                  onChange={(e) => setForm({ ...form, customVisitType: e.target.value })}
+                  className="input-field h-auto py-2"
+                />
+              </div>
+            )}
+          </div>
+        );
+      case "hasVehicle":
+        return (
+          <div key={field.id} className="space-y-4">
+            <div>
+              <label htmlFor="hasVehicle" className="mb-1 block text-sm font-medium text-ink-soft">
+                {fieldLabel(field, t.hasVehicle)}
+              </label>
+              <select
+                id="hasVehicle"
+                required={field.required}
+                value={form.hasVehicle}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    hasVehicle: e.target.value,
+                    ...(e.target.value === "no"
+                      ? { vehiclePlate: "", vehicleColor: "", vehicleModel: "" }
+                      : {}),
+                  })
+                }
+                className="input-field h-auto py-2"
+              >
+                <option value="" disabled>
+                  {t.visitTypePlaceholder}
+                </option>
+                <option value="si">{t.yes}</option>
+                <option value="no">{t.no}</option>
+              </select>
+            </div>
+            {form.hasVehicle === "si" && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label htmlFor="vehiclePlate" className="mb-1 block text-sm font-medium text-ink-soft">
+                    {t.vehiclePlate}
+                  </label>
+                  <input
+                    id="vehiclePlate"
+                    type="text"
+                    required
+                    value={form.vehiclePlate}
+                    onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
+                    className="input-field h-auto py-2"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vehicleColor" className="mb-1 block text-sm font-medium text-ink-soft">
+                    {t.vehicleColor}
+                  </label>
+                  <input
+                    id="vehicleColor"
+                    type="text"
+                    required
+                    value={form.vehicleColor}
+                    onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
+                    className="input-field h-auto py-2"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vehicleModel" className="mb-1 block text-sm font-medium text-ink-soft">
+                    {t.vehicleModel}
+                  </label>
+                  <input
+                    id="vehicleModel"
+                    type="text"
+                    required
+                    value={form.vehicleModel}
+                    onChange={(e) => setForm({ ...form, vehicleModel: e.target.value })}
+                    className="input-field h-auto py-2"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      case "reason":
+        return (
+          <div key={field.id}>
+            <label htmlFor="reason" className="mb-1 block text-sm font-medium text-ink-soft">
+              {fieldLabel(field, t.reason)}
+            </label>
+            <input
+              id="reason"
+              type="text"
+              required={field.required}
+              value={form.reason}
+              onChange={(e) => setForm({ ...form, reason: e.target.value })}
+              className="input-field h-auto py-2"
+            />
+          </div>
+        );
+      default:
+        return null;
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -146,7 +383,7 @@ export default function PreRegistro() {
     setSubmitting(true);
 
     const { data, error: invokeError } = await supabase.functions.invoke("public-preregister", {
-      body: { action: "create", ...form, visitType: resolvedVisitType },
+      body: { action: "create", ...form, visitType: resolvedVisitType, customAnswers },
     });
 
     setSubmitting(false);
@@ -203,48 +440,6 @@ export default function PreRegistro() {
           </div>
 
           <div>
-            <label htmlFor="visitorCompany" className="mb-1 block text-sm font-medium text-ink-soft">
-              {t.visitorCompany}
-            </label>
-            <AutoCompleteInput
-              id="visitorCompany"
-              required
-              suggestions={visitorCompanySuggestions}
-              value={form.visitorCompany}
-              onChange={(visitorCompany) => setForm({ ...form, visitorCompany })}
-              className="input-field h-auto py-2"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
-              {t.visitorPhone}
-            </label>
-            <input
-              id="visitorPhone"
-              type="tel"
-              required
-              value={form.visitorPhone}
-              onChange={(e) => setForm({ ...form, visitorPhone: e.target.value })}
-              className="input-field h-auto py-2"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="visitorEmail" className="mb-1 block text-sm font-medium text-ink-soft">
-              {t.visitorEmail}
-            </label>
-            <input
-              id="visitorEmail"
-              type="email"
-              required
-              value={form.visitorEmail}
-              onChange={(e) => setForm({ ...form, visitorEmail: e.target.value })}
-              className="input-field h-auto py-2"
-            />
-          </div>
-
-          <div>
             <label htmlFor="company" className="mb-1 block text-sm font-medium text-ink-soft">
               {t.company}
             </label>
@@ -266,115 +461,7 @@ export default function PreRegistro() {
             </select>
           </div>
 
-          <div>
-            <label htmlFor="visitType" className="mb-1 block text-sm font-medium text-ink-soft">
-              {t.visitType}
-            </label>
-            <select
-              id="visitType"
-              required
-              value={form.visitType}
-              onChange={(e) => setForm({ ...form, visitType: e.target.value, customVisitType: "" })}
-              className="input-field h-auto py-2"
-            >
-              <option value="" disabled>
-                {t.visitTypePlaceholder}
-              </option>
-              {visitTypes.map((option) => (
-                <option key={option.id} value={option.name}>
-                  {option.name}
-                </option>
-              ))}
-              <option value={OTROS_SENTINEL}>{t.otros}</option>
-            </select>
-          </div>
-
-          {form.visitType === OTROS_SENTINEL && (
-            <div>
-              <label htmlFor="customVisitType" className="mb-1 block text-sm font-medium text-ink-soft">
-                {t.customVisitType}
-              </label>
-              <input
-                id="customVisitType"
-                type="text"
-                required
-                value={form.customVisitType}
-                onChange={(e) => setForm({ ...form, customVisitType: e.target.value })}
-                className="input-field h-auto py-2"
-              />
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="hasVehicle" className="mb-1 block text-sm font-medium text-ink-soft">
-              {t.hasVehicle}
-            </label>
-            <select
-              id="hasVehicle"
-              required
-              value={form.hasVehicle}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  hasVehicle: e.target.value,
-                  ...(e.target.value === "no"
-                    ? { vehiclePlate: "", vehicleColor: "", vehicleModel: "" }
-                    : {}),
-                })
-              }
-              className="input-field h-auto py-2"
-            >
-              <option value="" disabled>
-                {t.visitTypePlaceholder}
-              </option>
-              <option value="si">{t.yes}</option>
-              <option value="no">{t.no}</option>
-            </select>
-          </div>
-
-          {form.hasVehicle === "si" && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <label htmlFor="vehiclePlate" className="mb-1 block text-sm font-medium text-ink-soft">
-                  {t.vehiclePlate}
-                </label>
-                <input
-                  id="vehiclePlate"
-                  type="text"
-                  required
-                  value={form.vehiclePlate}
-                  onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })}
-                  className="input-field h-auto py-2"
-                />
-              </div>
-              <div>
-                <label htmlFor="vehicleColor" className="mb-1 block text-sm font-medium text-ink-soft">
-                  {t.vehicleColor}
-                </label>
-                <input
-                  id="vehicleColor"
-                  type="text"
-                  required
-                  value={form.vehicleColor}
-                  onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
-                  className="input-field h-auto py-2"
-                />
-              </div>
-              <div>
-                <label htmlFor="vehicleModel" className="mb-1 block text-sm font-medium text-ink-soft">
-                  {t.vehicleModel}
-                </label>
-                <input
-                  id="vehicleModel"
-                  type="text"
-                  required
-                  value={form.vehicleModel}
-                  onChange={(e) => setForm({ ...form, vehicleModel: e.target.value })}
-                  className="input-field h-auto py-2"
-                />
-              </div>
-            </div>
-          )}
+          {sortedFields.map((field) => renderField(field))}
 
           {hasDivisions && (
             <div>
@@ -399,20 +486,6 @@ export default function PreRegistro() {
               </select>
             </div>
           )}
-
-          <div>
-            <label htmlFor="reason" className="mb-1 block text-sm font-medium text-ink-soft">
-              {t.reason}
-            </label>
-            <input
-              id="reason"
-              type="text"
-              required
-              value={form.reason}
-              onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              className="input-field h-auto py-2"
-            />
-          </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

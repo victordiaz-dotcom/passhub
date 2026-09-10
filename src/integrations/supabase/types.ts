@@ -193,6 +193,42 @@ export type Database = {
           },
         ]
       }
+      preregistro_fields: {
+        Row: {
+          created_at: string
+          field_key: string
+          id: string
+          kind: string
+          label_en: string | null
+          label_es: string | null
+          required: boolean
+          sort_order: number
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          field_key: string
+          id?: string
+          kind: string
+          label_en?: string | null
+          label_es?: string | null
+          required?: boolean
+          sort_order?: number
+          visible?: boolean
+        }
+        Update: {
+          created_at?: string
+          field_key?: string
+          id?: string
+          kind?: string
+          label_en?: string | null
+          label_es?: string | null
+          required?: boolean
+          sort_order?: number
+          visible?: boolean
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           active: boolean
@@ -266,6 +302,7 @@ export type Database = {
           company_id: string
           created_at: string
           created_by: string | null
+          custom_answers: Json | null
           division: string | null
           extended_until: string | null
           has_vehicle: boolean | null
@@ -290,6 +327,7 @@ export type Database = {
           company_id: string
           created_at?: string
           created_by?: string | null
+          custom_answers?: Json | null
           division?: string | null
           extended_until?: string | null
           has_vehicle?: boolean | null
@@ -314,6 +352,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           created_by?: string | null
+          custom_answers?: Json | null
           division?: string | null
           extended_until?: string | null
           has_vehicle?: boolean | null

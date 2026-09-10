@@ -27,6 +27,7 @@ const CATALOG_ENTITY_LABELS: Record<string, string> = {
   companies: "Empresa",
   divisions: "División",
   visit_types: "Tipo de visita",
+  preregistro_fields: "Campo de pre-registro",
 };
 
 function isCatalogEntity(entity: string) {
@@ -35,8 +36,9 @@ function isCatalogEntity(entity: string) {
 
 function catalogActionLabel(row: AuditRow): string {
   const noun = CATALOG_ENTITY_LABELS[row.entity];
-  if (row.action === "create") return `${noun} creada`;
-  if (row.action === "update") return `${noun} actualizada`;
+  if (row.action === "create") return `${noun} creado(a)`;
+  if (row.action === "update") return `${noun} actualizado(a)`;
+  if (row.action === "delete") return `${noun} borrado(a)`;
   return row.action;
 }
 
@@ -91,7 +93,8 @@ function summarizeDetail(row: AuditRow): string {
     }
     case "create": {
       if (isCatalogEntity(row.entity)) {
-        const name = (detail as { name?: string }).name;
+        const d = detail as { name?: string; label_es?: string; field_key?: string };
+        const name = d.name ?? d.label_es ?? d.field_key;
         return name ? `Nombre: ${name}` : "—";
       }
       const d = detail as {
@@ -109,6 +112,16 @@ function summarizeDetail(row: AuditRow): string {
       return parts.length ? parts.join(" · ") : "—";
     }
     case "update": {
+      if (row.entity === "preregistro_fields") {
+        const oldRow = (detail as { old?: Record<string, unknown> }).old ?? {};
+        const newRow = (detail as { new?: Record<string, unknown> }).new ?? {};
+        const parts: string[] = [];
+        if (oldRow.visible !== newRow.visible) parts.push(newRow.visible ? "Mostrado" : "Ocultado");
+        if (oldRow.required !== newRow.required) parts.push(newRow.required ? "Ahora obligatorio" : "Ahora opcional");
+        if (oldRow.sort_order !== newRow.sort_order) parts.push("Reordenado");
+        if (oldRow.label_es !== newRow.label_es || oldRow.label_en !== newRow.label_en) parts.push("Etiqueta editada");
+        return parts.length ? parts.join(" · ") : "—";
+      }
       if (isCatalogEntity(row.entity)) {
         const oldActive = (detail as { old?: { active?: boolean } }).old?.active;
         const newActive = (detail as { new?: { active?: boolean } }).new?.active;
@@ -120,6 +133,14 @@ function summarizeDetail(row: AuditRow): string {
       if (!oldRow?.status || !newRow?.status || oldRow.status === newRow.status) return "—";
       const who = newRow.visitor_name ? `${newRow.visitor_name}: ` : "";
       return `${who}${oldRow.status} → ${newRow.status}`;
+    }
+    case "delete": {
+      if (isCatalogEntity(row.entity)) {
+        const d = detail as { name?: string; label_es?: string; field_key?: string };
+        const name = d.name ?? d.label_es ?? d.field_key;
+        return name ? `Nombre: ${name}` : "—";
+      }
+      return "—";
     }
     default:
       return "—";
@@ -173,7 +194,8 @@ export default function AuditLog() {
       if (dateTo) query = query.lt("created_at", localDayRangeUtc(dateTo).endIso);
       if (category === "cuentas") query = query.in("entity", ["profiles", "user_roles"]);
       if (category === "visitas") query = query.eq("entity", "visits");
-      if (category === "catalogos") query = query.in("entity", ["companies", "divisions", "visit_types"]);
+      if (category === "catalogos")
+        query = query.in("entity", ["companies", "divisions", "visit_types", "preregistro_fields"]);
       if (actorId) query = query.eq("actor_id", actorId);
 
       const { data } = await query;
@@ -186,8 +208,23 @@ export default function AuditLog() {
   const targetLabel = useMemo(
     () => (row: AuditRow) => {
       if (isCatalogEntity(row.entity)) {
-        const detail = row.detail as { name?: string; new?: { name?: string }; old?: { name?: string } } | null;
-        const name = detail?.name ?? detail?.new?.name ?? detail?.old?.name;
+        const detail = row.detail as {
+          name?: string;
+          label_es?: string;
+          field_key?: string;
+          new?: { name?: string; label_es?: string; field_key?: string };
+          old?: { name?: string; label_es?: string; field_key?: string };
+        } | null;
+        const name =
+          detail?.name ??
+          detail?.label_es ??
+          detail?.field_key ??
+          detail?.new?.name ??
+          detail?.new?.label_es ??
+          detail?.new?.field_key ??
+          detail?.old?.name ??
+          detail?.old?.label_es ??
+          detail?.old?.field_key;
         return name ?? "—";
       }
       if (row.entity !== "profiles" && row.entity !== "user_roles") return "—";

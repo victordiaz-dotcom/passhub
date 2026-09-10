@@ -21,6 +21,7 @@ type Preregistration = {
   vehicle_color: string | null;
   vehicle_model: string | null;
   reason: string | null;
+  custom_answers: Record<string, { label_es: string | null; label_en: string | null; value: string }> | null;
   visit_date: string;
   visit_time: string | null;
   status: "pendiente" | "usada" | "vencida" | "cancelada";
@@ -322,6 +323,15 @@ export default function PreRegistroConfirmacion() {
               </div>
             </>
           )}
+          {details.custom_answers &&
+            Object.values(details.custom_answers).map((answer, i) => (
+              <div key={i} className="flex justify-between py-2">
+                <dt className="text-ink-soft">
+                  {(lang === "es" ? answer.label_es : answer.label_en) || answer.label_es || answer.label_en}
+                </dt>
+                <dd className="font-medium text-ink">{answer.value}</dd>
+              </div>
+            ))}
         </dl>
 
         <p className="mt-6 text-center text-xs text-ink-soft">{t.saveLinkNote}</p>
