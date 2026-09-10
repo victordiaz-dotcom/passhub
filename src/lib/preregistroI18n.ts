@@ -11,6 +11,10 @@ export function getStoredLang(): Lang | null {
   }
 }
 
+export function hasStoredLang(): boolean {
+  return getStoredLang() !== null;
+}
+
 export function storeLang(lang: Lang) {
   try {
     localStorage.setItem(STORAGE_KEY, lang);

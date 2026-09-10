@@ -57,6 +57,11 @@ function formatDateTime(iso: string) {
   });
 }
 
+const PASSWORD_MODE_LABELS: Record<string, string> = {
+  auto: "contraseña generada automáticamente",
+  manual: "contraseña definida por el administrador",
+};
+
 function summarizeDetail(row: AuditRow): string {
   const detail = row.detail as Record<string, unknown> | null;
   if (!detail) return "—";
@@ -64,9 +69,23 @@ function summarizeDetail(row: AuditRow): string {
   switch (row.action) {
     case "update_email":
       return `${detail.old_email ?? "?"} → ${detail.new_email ?? "?"}`;
-    case "grant_role":
-    case "revoke_role":
     case "create_user": {
+      const role = detail.role as string | undefined;
+      const username = detail.username as string | undefined;
+      const passwordMode = detail.passwordMode as string | undefined;
+      const parts = [
+        username ? `Usuario: ${username}` : null,
+        role ? `Rol: ${ROLE_LABELS[role] ?? role}` : null,
+        passwordMode ? PASSWORD_MODE_LABELS[passwordMode] ?? null : null,
+      ].filter(Boolean);
+      return parts.length ? parts.join(" · ") : "—";
+    }
+    case "reset_password": {
+      const passwordMode = detail.passwordMode as string | undefined;
+      return passwordMode ? PASSWORD_MODE_LABELS[passwordMode] ?? "—" : "—";
+    }
+    case "grant_role":
+    case "revoke_role": {
       const role = detail.role as string | undefined;
       return role ? `Rol: ${ROLE_LABELS[role] ?? role}` : "—";
     }
@@ -75,8 +94,19 @@ function summarizeDetail(row: AuditRow): string {
         const name = (detail as { name?: string }).name;
         return name ? `Nombre: ${name}` : "—";
       }
-      const visitorName = (detail as { visitor_name?: string }).visitor_name;
-      return visitorName ? `Visitante: ${visitorName}` : "—";
+      const d = detail as {
+        visitor_name?: string;
+        visit_type?: string;
+        division?: string | null;
+        reason?: string | null;
+      };
+      const parts = [
+        d.visitor_name ? `Visitante: ${d.visitor_name}` : null,
+        d.visit_type ? `Tipo: ${d.visit_type}` : null,
+        d.division ? `División: ${d.division}` : null,
+        d.reason ? `Motivo: ${d.reason}` : null,
+      ].filter(Boolean);
+      return parts.length ? parts.join(" · ") : "—";
     }
     case "update": {
       if (isCatalogEntity(row.entity)) {
@@ -85,11 +115,11 @@ function summarizeDetail(row: AuditRow): string {
         if (oldActive !== newActive) return newActive ? "Reactivada" : "Desactivada";
         return "—";
       }
-      const oldStatus = (detail as { old?: { status?: string } }).old?.status;
-      const newStatus = (detail as { new?: { status?: string } }).new?.status;
-      return oldStatus && newStatus && oldStatus !== newStatus
-        ? `Estado: ${oldStatus} → ${newStatus}`
-        : "—";
+      const oldRow = (detail as { old?: { status?: string; visitor_name?: string } }).old;
+      const newRow = (detail as { new?: { status?: string; visitor_name?: string } }).new;
+      if (!oldRow?.status || !newRow?.status || oldRow.status === newRow.status) return "—";
+      const who = newRow.visitor_name ? `${newRow.visitor_name}: ` : "";
+      return `${who}${oldRow.status} → ${newRow.status}`;
     }
     default:
       return "—";

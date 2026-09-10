@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
     action: "create_user",
     entity: "profiles",
     entity_id: newUserId,
-    detail: { full_name: fullName, email, username, role },
+    detail: { full_name: fullName, email, username, role, passwordMode: password !== undefined ? "manual" : "auto" },
   });
 
   return jsonResponse({ userId: newUserId, email, tempPassword });

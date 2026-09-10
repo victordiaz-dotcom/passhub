@@ -6,6 +6,7 @@ import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions"
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import {
   PREREG_T,
+  hasStoredLang,
   resolveInitialLang,
   storeLang,
   translateServerError,
@@ -50,11 +51,47 @@ export default function PreRegistro() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>(() => resolveInitialLang(null));
+  // Solo se pregunta la primera vez que alguien entra desde este navegador
+  // (sin idioma guardado todavía) — quien vuelve a entrar, o cambia de
+  // idioma con el selector ES/EN de la esquina, ya no ve esta pantalla de
+  // nuevo.
+  const [langChosen, setLangChosen] = useState(() => hasStoredLang());
   const t = PREREG_T[lang];
 
   function changeLang(next: Lang) {
     setLang(next);
     storeLang(next);
+  }
+
+  function chooseInitialLang(next: Lang) {
+    changeLang(next);
+    setLangChosen(true);
+  }
+
+  if (!langChosen) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper p-6">
+        <div className="card w-full max-w-sm p-8 text-center">
+          <img src="/logo.png" alt="PassHub" className="mx-auto mb-6 h-14 w-auto" />
+          <p className="mb-1 font-display text-lg font-bold text-ink">
+            ¿En qué idioma prefieres continuar?
+          </p>
+          <p className="mb-6 text-sm text-ink-soft">Which language would you like to continue in?</p>
+          <div className="flex flex-col gap-3">
+            <button type="button" onClick={() => chooseInitialLang("es")} className="btn-primary h-auto w-full py-2">
+              Español
+            </button>
+            <button
+              type="button"
+              onClick={() => chooseInitialLang("en")}
+              className="btn-secondary h-auto w-full py-2"
+            >
+              English
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // El campo "División" solo aparece si la empresa elegida tiene divisiones

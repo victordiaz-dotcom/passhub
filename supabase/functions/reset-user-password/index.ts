@@ -185,7 +185,11 @@ Deno.serve(async (req) => {
     action: "reset_password",
     entity: "profiles",
     entity_id: userId,
-    detail: { full_name: target?.full_name, email: target?.email },
+    detail: {
+      full_name: target?.full_name,
+      email: target?.email,
+      passwordMode: password !== undefined ? "manual" : "auto",
+    },
   });
 
   return jsonResponse({ userId, email: updated.user.email, tempPassword: finalPassword });
