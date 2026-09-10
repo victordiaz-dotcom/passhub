@@ -119,14 +119,14 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Solo un administrador puede restablecer contraseñas." }, 403);
   }
 
-  let body: { userId?: string; password?: string };
+  let body: { userId?: string; password?: string; requireChange?: boolean };
   try {
     body = await req.json();
   } catch {
     return jsonResponse({ error: "Cuerpo de la solicitud inválido." }, 400);
   }
 
-  const { userId, password } = body;
+  const { userId, password, requireChange } = body;
 
   if (!userId) {
     return jsonResponse({ error: "Falta el user_id." }, 400);
@@ -151,8 +151,9 @@ Deno.serve(async (req) => {
   }
 
   // El admin puede escribir la contraseña él mismo o dejar que se genere
-  // una automáticamente — en ambos casos la persona la cambia al iniciar
-  // sesión (must_change_password se deja como estaba, esto no lo toca).
+  // una automáticamente, y decide aparte (checkbox en el front, por
+  // defecto marcado) si la persona debe cambiarla al iniciar sesión o si
+  // esta ya queda como definitiva.
   if (password !== undefined && password.trim().length < 8) {
     return jsonResponse({ error: "La contraseña debe tener al menos 8 caracteres." }, 400);
   }
@@ -173,6 +174,8 @@ Deno.serve(async (req) => {
   if (updateError || !updated.user) {
     return jsonResponse({ error: updateError?.message ?? "No se pudo restablecer la contraseña." }, 400);
   }
+
+  await adminClient.from("profiles").update({ must_change_password: requireChange ?? true }).eq("id", userId);
 
   const { data: target } = await adminClient
     .from("profiles")

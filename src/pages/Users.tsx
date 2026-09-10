@@ -11,6 +11,35 @@ type Account = Tables<"profiles"> & {
 };
 type Company = Pick<Tables<"companies">, "id" | "name">;
 
+// navigator.clipboard requiere contexto seguro (https o localhost) -- igual
+// que crypto.randomUUID (ver randomId() en CheckIn.tsx), falla en silencio
+// al entrar por IP local en http. Fallback con un textarea temporal +
+// execCommand, que sí funciona en contexto inseguro.
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // sigue al fallback
+  }
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 const emptyForm = {
   email: "",
   username: "",
@@ -19,6 +48,7 @@ const emptyForm = {
   role: "recepcion",
   passwordMode: "auto" as "auto" | "custom",
   customPassword: "",
+  requireChange: true,
 };
 
 
@@ -42,7 +72,9 @@ export default function Users() {
   const [resetTarget, setResetTarget] = useState<Account | null>(null);
   const [resetMode, setResetMode] = useState<"auto" | "custom">("auto");
   const [resetCustomPassword, setResetCustomPassword] = useState("");
+  const [resetRequireChange, setResetRequireChange] = useState(true);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean | null>(null);
 
   const [editingOriginalEmail, setEditingOriginalEmail] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -80,6 +112,7 @@ export default function Users() {
       role: account.user_roles[0]?.role ?? "recepcion",
       passwordMode: "auto",
       customPassword: "",
+      requireChange: true,
     });
   }
 
@@ -98,6 +131,7 @@ export default function Users() {
         companyId: form.companyId,
         role: form.role,
         password: form.passwordMode === "custom" ? form.customPassword : undefined,
+        requireChange: form.requireChange,
       },
     });
 
@@ -106,6 +140,7 @@ export default function Users() {
       return false;
     }
 
+    setCopied(null);
     setTempPasswordInfo({ email: data.email, tempPassword: data.tempPassword, context: "creada" });
     return true;
   }
@@ -189,6 +224,7 @@ export default function Users() {
     setResetTarget(account);
     setResetMode("auto");
     setResetCustomPassword("");
+    setResetRequireChange(true);
     setResetError(null);
   }
 
@@ -213,6 +249,7 @@ export default function Users() {
       body: {
         userId: resetTarget.id,
         password: resetMode === "custom" ? resetCustomPassword : undefined,
+        requireChange: resetRequireChange,
       },
     });
 
@@ -224,6 +261,7 @@ export default function Users() {
     }
 
     setResetTarget(null);
+    setCopied(null);
     setTempPasswordInfo({ email: data.email, tempPassword: data.tempPassword, context: "restablecida" });
   }
 
@@ -262,7 +300,19 @@ export default function Users() {
             <span className="font-bold">{tempPasswordInfo.email}</span>
           </p>
           <p className="mt-2 text-sm text-ink-soft">Contraseña temporal (solo se muestra una vez):</p>
-          <p className="mt-1 font-display text-lg font-bold text-ink">{tempPasswordInfo.tempPassword}</p>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="font-display text-lg font-bold text-ink">{tempPasswordInfo.tempPassword}</p>
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await copyToClipboard(tempPasswordInfo.tempPassword);
+                setCopied(ok);
+              }}
+              className="btn-secondary h-auto px-2 py-1 text-xs"
+            >
+              {copied === true ? "¡Copiada!" : copied === false ? "No se pudo, selecciónala" : "Copiar"}
+            </button>
+          </div>
           <p className="mt-2 text-xs text-ink-soft">
             Cópiala y entrégasela en persona o por un canal seguro.
           </p>
@@ -413,6 +463,14 @@ export default function Users() {
                   className="input-field mt-2 h-auto py-2"
                 />
               )}
+              <label className="mt-3 flex items-center gap-1.5 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={form.requireChange}
+                  onChange={(e) => setForm({ ...form, requireChange: e.target.checked })}
+                />
+                Pedirle que la cambie al iniciar sesión por primera vez
+              </label>
             </div>
           )}
 
@@ -579,6 +637,15 @@ export default function Users() {
                 className="input-field mt-3 h-auto py-2"
               />
             )}
+
+            <label className="mt-3 flex items-center gap-1.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={resetRequireChange}
+                onChange={(e) => setResetRequireChange(e.target.checked)}
+              />
+              Pedirle que la cambie al iniciar sesión
+            </label>
 
             {resetError && <p className="mt-3 text-sm text-danger">{resetError}</p>}
 

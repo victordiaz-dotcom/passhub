@@ -131,6 +131,7 @@ Deno.serve(async (req) => {
     companyId?: string;
     role?: string;
     password?: string;
+    requireChange?: boolean;
   };
   try {
     body = await req.json();
@@ -138,7 +139,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Cuerpo de la solicitud inválido." }, 400);
   }
 
-  const { email, fullName, companyId, role, password } = body;
+  const { email, fullName, companyId, role, password, requireChange } = body;
   const username = body.username?.trim().toLowerCase();
 
   if (!email || !username || !fullName || !companyId || !role) {
@@ -156,9 +157,9 @@ Deno.serve(async (req) => {
   }
 
   // El admin puede escribir la contraseña él mismo o dejar que se genere
-  // una automáticamente — en ambos casos la persona la cambia al iniciar
-  // sesión por primera vez (must_change_password queda en true de cualquier
-  // forma, más abajo).
+  // una automáticamente, y decide aparte (checkbox en el front, por
+  // defecto marcado) si la persona debe cambiarla al iniciar sesión por
+  // primera vez — ver must_change_password más abajo.
   if (password !== undefined && password.trim().length < 8) {
     return jsonResponse({ error: "La contraseña debe tener al menos 8 caracteres." }, 400);
   }
@@ -185,9 +186,10 @@ Deno.serve(async (req) => {
 
   const newUserId = created.user.id;
 
-  // must_change_password: true -- esta es una contraseña temporal generada
-  // por el admin; la persona debe elegir la suya propia al iniciar sesión
-  // por primera vez.
+  // must_change_password: el admin decide si la persona debe elegir su
+  // propia contraseña al iniciar sesión por primera vez (checkbox en el
+  // front, por defecto marcado) o si la que se le dio/generó ya queda como
+  // definitiva.
   const { error: profileError } = await adminClient.from("profiles").insert({
     id: newUserId,
     full_name: fullName,
@@ -195,7 +197,7 @@ Deno.serve(async (req) => {
     username,
     company_id: companyId,
     active: true,
-    must_change_password: true,
+    must_change_password: requireChange ?? true,
   });
 
   if (profileError) {
