@@ -738,10 +738,11 @@ export default function CheckIn() {
                     <input
                       id="visitorPhone"
                       type="tel"
+                      inputMode="numeric"
                       required
                       disabled={!!folio}
                       value={visitorPhone}
-                      onChange={(e) => setVisitorPhone(e.target.value)}
+                      onChange={(e) => setVisitorPhone(e.target.value.replace(/\D/g, ""))}
                       className={inputClass}
                     />
                   </div>

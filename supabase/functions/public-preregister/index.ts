@@ -268,6 +268,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Faltan campos requeridos." }, 400);
   }
 
+  // El front ya filtra el teléfono a solo dígitos mientras se escribe; esto
+  // es la validación real (alguien podría llamar a este endpoint directo).
+  if (typeof visitorPhone === "string" && visitorPhone && !/^\d+$/.test(visitorPhone)) {
+    return jsonResponse({ error: "El teléfono solo debe contener números." }, 400);
+  }
+
   // Si "¿traes vehículo?" no es obligatorio y no se contestó, se trata como
   // "no" (sin datos de vehículo) en vez de rechazar la solicitud.
   const vehicleAnswer = hasVehicle === "si" ? "si" : "no";

@@ -203,9 +203,10 @@ export default function PreRegistro() {
             <input
               id="visitorPhone"
               type="tel"
+              inputMode="numeric"
               required={field.required}
               value={form.visitorPhone}
-              onChange={(e) => setForm({ ...form, visitorPhone: e.target.value })}
+              onChange={(e) => setForm({ ...form, visitorPhone: e.target.value.replace(/\D/g, "") })}
               className="input-field h-auto py-2"
             />
           </div>

@@ -176,6 +176,7 @@ const SERVER_ERROR_EN: Record<string, string> = {
   "Acción inválida.": "Invalid action.",
   "Faltan campos requeridos.": "Required fields are missing.",
   "Faltan los datos del vehículo (placas, color, modelo).": "Vehicle details are missing (plate, color, model).",
+  "El teléfono solo debe contener números.": "The phone number can only contain digits.",
   "La fecha de la visita no puede ser anterior a hoy.": "The visit date can't be before today.",
   "La empresa no existe.": "That company doesn't exist.",
   "El colaborador no existe.": "That host doesn't exist.",
