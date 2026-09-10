@@ -14,6 +14,16 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+// visitor_name/reason/division/visitor_company pueden venir tal cual del
+// pre-registro público sin autenticar (un visitante los escribe libremente).
+// Sin escapar, alguien podría meter "<!channel>", "<@USERID>" o un link
+// falso "<https://evil|texto>" y que Slack lo interprete como mención/link
+// real al mandarse el DM al colaborador. Regla oficial de Slack para texto
+// de usuario dentro de mrkdwn: escapar &, < y > en ese orden.
+function escapeSlackText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 async function slackGet(url: string, token: string) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   return res.json();
@@ -138,19 +148,19 @@ Deno.serve(async (req) => {
   });
 
   const fields = [
-    { type: "mrkdwn", text: `🧑 *Visitante:*\n${visit.visitor_name}` },
-    { type: "mrkdwn", text: `🏢 *Empresa:*\n${visit.companies?.name ?? "—"}` },
+    { type: "mrkdwn", text: `🧑 *Visitante:*\n${escapeSlackText(visit.visitor_name)}` },
+    { type: "mrkdwn", text: `🏢 *Empresa:*\n${escapeSlackText(visit.companies?.name ?? "—")}` },
     { type: "mrkdwn", text: `🕐 *Hora de ingreso:*\n${checkInTime}` },
   ];
 
   if (visit.division) {
-    fields.push({ type: "mrkdwn", text: `🧭 *División:*\n${visit.division}` });
+    fields.push({ type: "mrkdwn", text: `🧭 *División:*\n${escapeSlackText(visit.division)}` });
   }
   if (visit.reason) {
-    fields.push({ type: "mrkdwn", text: `📝 *Motivo:*\n${visit.reason}` });
+    fields.push({ type: "mrkdwn", text: `📝 *Motivo:*\n${escapeSlackText(visit.reason)}` });
   }
   if (visit.visitor_company) {
-    fields.push({ type: "mrkdwn", text: `🪪 *Empresa visitante:*\n${visit.visitor_company}` });
+    fields.push({ type: "mrkdwn", text: `🪪 *Empresa visitante:*\n${escapeSlackText(visit.visitor_company)}` });
   }
 
   const blocks = [
@@ -167,7 +177,10 @@ Deno.serve(async (req) => {
   // Slack ya no deja hacer eso con bloques sueltos.
   const slackData = await slackPost("https://slack.com/api/chat.postMessage", slackBotToken, {
     channel: dmChannelId,
-    text: `${visit.visitor_name} llegó a recepción de ${visit.companies?.name ?? "tu empresa"} (folio ${visit.folio})`,
+    // Este "text" es el fallback de notificación push (no mrkdwn real), pero
+    // igual se escapa por consistencia y porque Slack lo muestra tal cual en
+    // notificaciones/vistas previas.
+    text: `${escapeSlackText(visit.visitor_name)} llegó a recepción de ${escapeSlackText(visit.companies?.name ?? "tu empresa")} (folio ${visit.folio})`,
     attachments: [{ color: "#1B3A5C", blocks }],
   });
 

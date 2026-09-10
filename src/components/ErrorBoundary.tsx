@@ -4,17 +4,13 @@ import { Component, type ReactNode } from "react";
 // render en cualquier parte de la app (uno ya existente o uno futuro)
 // desmonta todo React y deja una pantalla en blanco permanente, sin forma
 // de recuperarse salvo refrescar manualmente.
-type State = { hasError: boolean; message: string | null; stack: string | null };
+type State = { hasError: boolean };
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
-  state: State = { hasError: false, message: null, stack: null };
+  state: State = { hasError: false };
 
-  static getDerivedStateFromError(error: unknown) {
-    return {
-      hasError: true,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack ?? null : null,
-    };
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
 
   componentDidCatch(error: unknown, info: unknown) {
@@ -37,14 +33,6 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
             >
               Recargar
             </button>
-            {/* Detalle técnico temporal para diagnóstico previo a producción
-                — quitar antes de salir a producción. */}
-            {this.state.message && (
-              <div className="mt-6 overflow-auto rounded-md border border-line bg-paper p-3 text-left text-xs text-danger">
-                <p className="font-bold">{this.state.message}</p>
-                {this.state.stack && <pre className="mt-2 whitespace-pre-wrap">{this.state.stack}</pre>}
-              </div>
-            )}
           </div>
         </div>
       );
