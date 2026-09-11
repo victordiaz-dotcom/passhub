@@ -7,6 +7,4 @@ dist
 backups/
 .git
 .gitignore
-Dockerfile
-nginx.conf
 *.md
