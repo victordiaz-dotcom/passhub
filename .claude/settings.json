@@ -1,0 +1,18 @@
+{
+  "enabledMcpjsonServers": ["supabase", "playwright"],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/victor_days/passhub && jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *.ts|*.tsx) npm run build 2>&1 | tail -20 ;; esac; }",
+            "timeout": 120,
+            "statusMessage": "Verificando build (npm run build)..."
+          }
+        ]
+      }
+    ]
+  }
+}
