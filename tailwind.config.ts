@@ -10,6 +10,7 @@ export default {
         "ink-soft": "rgb(var(--ink-soft) / <alpha-value>)",
         paper: "rgb(var(--paper) / <alpha-value>)",
         card: "rgb(var(--card) / <alpha-value>)",
+        "surface-soft": "rgb(var(--surface-soft) / <alpha-value>)",
         line: "rgb(var(--line) / <alpha-value>)",
         accent: "rgb(var(--accent) / <alpha-value>)",
         "accent-tint": "rgb(var(--accent-tint) / <alpha-value>)",

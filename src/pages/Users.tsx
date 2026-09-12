@@ -494,14 +494,14 @@ export default function Users() {
       <div className="card overflow-x-auto p-0">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Usuario</th>
-              <th className="px-4 py-3 font-medium">Correo</th>
-              <th className="px-4 py-3 font-medium">Empresa</th>
-              <th className="px-4 py-3 font-medium">Rol</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium">Acciones</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Nombre</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Usuario</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Correo</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Empresa</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Rol</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
           <tbody>

@@ -305,12 +305,12 @@ export default function AuditLog() {
       <div className="card overflow-x-auto p-0">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Actor</th>
-              <th className="px-4 py-3 font-medium">Acción</th>
-              <th className="px-4 py-3 font-medium">Elemento afectado</th>
-              <th className="px-4 py-3 font-medium">Detalle</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Fecha</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Actor</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acción</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Elemento afectado</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Detalle</th>
             </tr>
           </thead>
           <tbody>

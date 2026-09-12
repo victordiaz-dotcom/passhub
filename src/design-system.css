@@ -42,7 +42,7 @@
   --success-9: #189771;
   --success-3: #d1eae3;
   --success-11: #0c5b42;
-  --warning-9: #ff9800;
+  --warning-9: #ffa726; /* tp-warn (Tendencys People) */
   --error-9: #f44336;
   --error-3: #fde9e7;
   --error-11: #991612;
@@ -309,6 +309,17 @@ select.input-field:focus-visible {
   gap: 26px;
 }
 
+/* ---------- TABLAS ----------
+   Encabezado de tabla al patrón tp-table__head: franja de fondo tenue,
+   etiqueta pequeña/negrita/mayúscula en vez del texto normal que había
+   antes (mismo tamaño que el resto de la fila). El color (text-ink-soft,
+   ya presente en el <tr> de cada tabla) y el padding (px-4 py-3, igual
+   que las celdas de dato) no se tocan, para no alterar el alto de fila
+   ni el layout de columnas ya establecido. */
+.tbl-head {
+  background: var(--gray-3);
+}
+
 /* ---------- MODALES ---------- */
 
 .modal-overlay {
@@ -441,4 +452,10 @@ select.input-field:focus-visible {
 .dark .btn-secondary:hover {
   background: #12161c;
   border-color: #3a4048;
+}
+/* .tbl-head sin esto quedaba con la franja #f7f7f7 fija del modo claro,
+   demasiado clara sobre .dark .card (#1a1f27) — mismo tono ya usado
+   arriba para superficies internas oscuras. */
+.dark .tbl-head {
+  background: #20262e;
 }

@@ -228,7 +228,7 @@ export default function PreRegistroConfirmacion() {
 
           if (details.status === "usada") {
             return (
-              <div className="mb-6 rounded-md border border-line bg-paper p-3 text-center text-sm text-ink-soft">
+              <div className="mb-6 rounded-md border border-line bg-surface-soft p-3 text-center text-sm text-ink-soft">
                 {t.usedPrefix}
                 {details.used_at ? t.usedAt(new Date(details.used_at).toLocaleString()) : ""}
                 {t.stillValidUntil(formatDate(expiresOn))}
@@ -237,7 +237,7 @@ export default function PreRegistroConfirmacion() {
           }
 
           return (
-            <div className="mb-6 rounded-md border border-line bg-paper p-3 text-center text-sm text-ink-soft">
+            <div className="mb-6 rounded-md border border-line bg-surface-soft p-3 text-center text-sm text-ink-soft">
               {t.validUntil(formatDate(expiresOn))}
             </div>
           );

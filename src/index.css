@@ -24,17 +24,18 @@
   --accent: 24 115 220; /* #1873dc — blue-9 (primario) */
   --accent-tint: 230 241 252; /* #e6f1fc — blue-2 */
   --accent-dark: 20 99 190; /* #1463be — blue-10, etiquetado "hover" en el archivo fuente */
-  --warn: 255 152 0; /* #ff9800 — warning-9 */
+  --warn: 255 167 38; /* #ffa726 — tp-warn (Tendencys People) */
   --warn-tint: 253 243 220; /* #fdf3dc — fondo de .badge-warning */
   --danger: 244 67 54; /* #f44336 — error-9 */
+  --surface-soft: 248 250 252; /* #f8fafc — tp-surface-soft, superficie secundaria (recuadro interno / caja de detalle) */
 
-  /* Radios — tendencys-design-system.css sección 2 */
+  /* Radios — alineados a tendencys-people-tokens.css (--tp-r-*) */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 10px;
-  --radius-xl: 14px;
+  --radius-xl: 12px; /* recuadros internos — tp-r-xl */
   --radius-2xl: 16px;
-  --radius-3xl: 24px; /* fallback documentado en .card-gold-banner */
+  --radius-3xl: 20px; /* tarjetas destacadas — tp-r-3xl */
   --radius-full: 9999px;
 
   /* Sombras — tendencys-design-system.css sección 3 */
@@ -67,6 +68,7 @@
   --warn: 255 167 51; /* #ffa733 */
   --warn-tint: 58 42 18; /* #3a2a12 */
   --danger: 242 102 89; /* #f26659 (oscurecido desde #ff6b5e, ver nota arriba) */
+  --surface-soft: 23 28 35; /* #171c23 — entre --paper y --card, mismo criterio que su par claro */
 }
 
 @layer base {
