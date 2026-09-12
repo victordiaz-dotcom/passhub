@@ -6,3 +6,5 @@ dist
 .DS_Store
 backups/
 *.tsbuildinfo
+.claude/
+.mcp.json
