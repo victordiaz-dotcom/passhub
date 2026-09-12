@@ -1,16 +1,8 @@
-# PassHub — nuevo proyecto (antes "sistema de visitas")
+# PassHub
 
 Este es el scaffold inicial (React + Vite + TypeScript + Tailwind + Supabase).
 La lógica de negocio real (pantallas, flujos, QR) todavía no está implementada —
 eso se hace en VS Code con Claude Code siguiendo `GUIA_PASO_A_PASO.md`.
-
-## Arrancar en local
-
-```bash
-npm install
-cp .env.example .env.local   # ya trae la URL y la publishable key del proyecto Supabase
-npm run dev
-```
 
 ## Dónde está todo
 
@@ -20,4 +12,3 @@ npm run dev
 - `Dockerfile` / `nginx.conf` — despliegue en producción (mismo patrón que AssetFlow).
 - `GUIA_PASO_A_PASO.md` — la guía completa: diagnóstico, arquitectura, plan de fases y prompts sugeridos.
 
-Lee primero `GUIA_PASO_A_PASO.md`.
