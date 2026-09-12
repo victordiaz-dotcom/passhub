@@ -6,9 +6,12 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 // font-medium siempre presente (no solo en isActive): si el peso de la
 // fuente cambia entre estados, cada link cambia de ancho y empuja a los
-// demás — por eso el menú "se movía" al cambiar de pestaña.
+// demás — por eso el menú "se movía" al cambiar de pestaña. Mismo motivo
+// por el que el padding de la píldora es igual en ambos estados.
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `text-sm font-medium ${isActive ? "text-white" : "text-white/70 hover:text-white"}`;
+  `rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+    isActive ? "bg-white/15 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+  }`;
 
 export function AppHeader() {
   const { profile, roles, isAdmin, isSuperadmin, signOut } = useAuth();
@@ -47,7 +50,7 @@ export function AppHeader() {
         </div>
       </header>
 
-      <nav className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 px-4 py-2">
+      <nav className="flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-white/10 px-3 py-2">
         <NavLink to="/" end className={navLinkClass}>
           Registrar visita
         </NavLink>

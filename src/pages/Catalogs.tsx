@@ -141,10 +141,10 @@ function CompaniesTab() {
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium">Acciones</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Nombre</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -269,11 +269,11 @@ function DivisionsTab() {
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Empresa</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium">Acciones</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Nombre</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Empresa</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -370,10 +370,10 @@ function VisitTypesTab() {
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium">Acciones</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Nombre</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -552,13 +552,13 @@ function PreregFieldsTab() {
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Etiqueta</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
-              <th className="px-4 py-3 font-medium">Visible</th>
-              <th className="px-4 py-3 font-medium">Obligatorio</th>
-              <th className="px-4 py-3 font-medium">Orden</th>
-              <th className="px-4 py-3 font-medium">Acciones</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Etiqueta</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Tipo</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Visible</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Obligatorio</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Orden</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
           <tbody>

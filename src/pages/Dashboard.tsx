@@ -193,16 +193,16 @@ export default function Dashboard() {
       <div className="card overflow-x-auto p-0">
         <table className="w-full min-w-[1100px] text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Visitante</th>
-              <th className="px-4 py-3 font-medium">Folio</th>
-              <th className="px-4 py-3 font-medium">A quién visita</th>
-              <th className="px-4 py-3 font-medium">Registró</th>
-              <th className="px-4 py-3 font-medium">Hora de entrada</th>
-              <th className="px-4 py-3 font-medium">Hora de salida</th>
-              <th className="px-4 py-3 font-medium">Marcó salida</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium">Acciones</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Visitante</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Folio</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">A quién visita</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Registró</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Hora de entrada</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Hora de salida</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Marcó salida</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
             </tr>
           </thead>
           <tbody>

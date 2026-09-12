@@ -81,10 +81,10 @@ export default function Employees() {
       <div className="card overflow-hidden p-0">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-line text-ink-soft">
-              <th className="px-4 py-3 font-medium">Nombre</th>
-              <th className="px-4 py-3 font-medium">Correo</th>
-              <th className="px-4 py-3 font-medium">Empresa</th>
+            <tr className="tbl-head border-b border-line text-ink-soft">
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Nombre</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Correo</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Empresa</th>
             </tr>
           </thead>
           <tbody>
