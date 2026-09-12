@@ -1,4 +1,4 @@
--- A petición de Victor Hugo Diaz Olmos (victor.diaz@tendencys.com): su
+-- A petición del dueño de la cuenta fundadora del sistema: su
 -- cuenta tenía 3 roles asignados (recepcion, admin, superadmin) — un
 -- remanente de cómo se configuró originalmente la cuenta, antes de que el
 -- sistema tratara "superadmin implica admin" de forma consistente (ver

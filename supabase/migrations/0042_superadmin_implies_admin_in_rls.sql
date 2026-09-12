@@ -1,7 +1,8 @@
--- Al preparar dejar la cuenta de Victor solo con el rol superadmin (sin
--- admin/recepcion adicionales), se encontró que casi todas las políticas
--- RLS gateadas por has_role(admin) [o admin/recepcion] NUNCA incluían a
--- superadmin como alternativa — a diferencia de las Edge Functions, que sí
+-- Al preparar dejar la cuenta fundadora del sistema solo con el rol
+-- superadmin (sin admin/recepcion adicionales), se encontró que casi
+-- todas las políticas RLS gateadas por has_role(admin) [o admin/recepcion]
+-- NUNCA incluían a superadmin como alternativa — a diferencia de las
+-- Edge Functions, que sí
 -- siempre chequean admin O superadmin. Una cuenta con SOLO el rol
 -- superadmin no podría, por ejemplo, registrar una visita (visits_insert),
 -- marcar salida (visits_update), ni gestionar colaboradores/empresas.

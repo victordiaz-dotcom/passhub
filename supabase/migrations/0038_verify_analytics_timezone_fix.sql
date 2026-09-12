@@ -10,7 +10,7 @@
 do $$
 declare
   v_company_id uuid := 'f1d32762-5ff2-43ef-8b70-cf9c62106042'; -- Tendencys Innovations
-  v_created_by uuid := '70500db6-223d-4a27-83fd-81664e55b0d4'; -- Victor Hugo Diaz Olmos
+  v_created_by uuid := '70500db6-223d-4a27-83fd-81664e55b0d4'; -- cuenta interna existente (solo para satisfacer el FK created_by)
   v_id_a uuid;
   v_id_b uuid;
   v_month_a date;

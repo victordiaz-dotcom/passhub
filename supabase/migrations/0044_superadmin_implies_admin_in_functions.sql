@@ -2,8 +2,8 @@
 -- en policies de pg_policies, por eso no se detectó en esa auditoría): las
 -- 6 funciones de analíticas y restrict_prereg_extension_to_admin exigían
 -- has_role(auth.uid(), 'admin') a secas, sin aceptar superadmin como
--- alternativa. Una cuenta con SOLO el rol superadmin (como la de Victor
--- ahora) no podía cargar ninguna gráfica de Analíticas, ni extender la
+-- alternativa. Una cuenta con SOLO el rol superadmin (como la fundadora
+-- del sistema) no podía cargar ninguna gráfica de Analíticas, ni extender la
 -- vigencia de un pre-registro.
 
 create or replace function public.analytics_visits_by_month(p_start timestamptz, p_end timestamptz)

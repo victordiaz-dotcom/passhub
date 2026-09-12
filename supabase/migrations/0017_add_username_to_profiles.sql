@@ -8,6 +8,6 @@ update profiles set username = lower(split_part(email, '@', 1)) where username i
 
 alter table profiles alter column username set not null;
 
--- Único sin distinguir mayúsculas/minúsculas, para que "Victor.Diaz" y
--- "victor.diaz" no puedan coexistir como usuarios distintos.
+-- Único sin distinguir mayúsculas/minúsculas, para que "Juan.Perez" y
+-- "juan.perez" no puedan coexistir como usuarios distintos.
 create unique index profiles_username_lower_idx on profiles (lower(username));

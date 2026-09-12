@@ -25,6 +25,8 @@ with check (
 -- app (visitas, empleados, historial, etc.), así que se le asignan ambos
 -- roles en vez de reescribir cada policy/chequeo de has_role('admin') que
 -- ya existe en el resto del sistema.
+-- (correo de la cuenta fundadora del sistema, omitido aquí por privacidad
+-- al publicar el repo — esta fila ya se aplicó, es historial)
 insert into user_roles (user_id, role)
-select id, 'superadmin'::app_role from profiles where email = 'victor.diaz@tendencys.com'
+select id, 'superadmin'::app_role from profiles where email = '<cuenta-fundadora>'
 on conflict do nothing;

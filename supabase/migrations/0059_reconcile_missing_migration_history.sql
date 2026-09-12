@@ -11,7 +11,7 @@
 --    usuario autenticado ve el directorio completo de las 4 empresas) para
 --    que recepción pueda elegir como anfitrión a cualquier colaborador, sin
 --    importar en qué empresa esté, ya que la recepción es compartida entre
---    las 4. Confirmado con Victor (2026-09-10): este es el comportamiento
+--    las 4. Confirmado con el equipo (2026-09-10): este es el comportamiento
 --    deseado, se deja así a propósito.
 drop policy if exists employees_select on employees;
 create policy employees_select on employees for select to authenticated using (true);

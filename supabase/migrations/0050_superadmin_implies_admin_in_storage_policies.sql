@@ -1,9 +1,9 @@
 -- Mismo hueco que ya se corrigió en 0042/0044 para tablas y funciones,
 -- pero nunca se aplicó a las policies de storage.objects del bucket
 -- visit-photos: solo chequeaban admin/recepcion, sin superadmin. Una
--- cuenta con SOLO el rol superadmin (como la de Victor, ver migración
--- de la tarea "deja la cuenta de Victor solo con superadmin") no podía
--- subir/ver/actualizar/borrar fotos de visita.
+-- cuenta con SOLO el rol superadmin (como la cuenta fundadora del
+-- sistema, ver migración de la tarea "deja esa cuenta solo con
+-- superadmin") no podía subir/ver/actualizar/borrar fotos de visita.
 
 alter policy visit_photos_insert on storage.objects
   with check (
