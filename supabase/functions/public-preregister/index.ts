@@ -20,9 +20,14 @@ function todayIso() {
 
 const MAX_BODY_BYTES = 100_000;
 
+// cf-connecting-ip lo pone Cloudflare (el borde real de Supabase) con la IP
+// verdadera del cliente y nadie de afuera puede falsificarlo -- a
+// diferencia de x-forwarded-for, que hoy Cloudflare normaliza antes de que
+// esta función lo vea, pero que un cliente SÍ podría inyectar directo si
+// algún día cambia la topología de red frente a esta función (probado:
+// hoy no sirve para saltarse el rate limit, pero es una suposición frágil
+// que no vale la pena mantener).
 function getClientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
   return req.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
