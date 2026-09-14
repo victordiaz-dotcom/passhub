@@ -8,3 +8,4 @@ backups/
 *.tsbuildinfo
 .claude/
 .mcp.json
+.codex/
