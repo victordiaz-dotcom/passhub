@@ -1,0 +1,17 @@
+-- Reconcilia con el historial local un cambio que se aplicó directamente a
+-- Supabase el 28 ago 2026 (restrict_anon_execute_role_helpers) y nunca se
+-- guardó como archivo local -- descubierto al auditar la paridad completa
+-- antes de entregar el proyecto para despliegue en otra infraestructura.
+-- (current_company_id(), que ese cambio original también tocaba, ya no
+-- existe -- se eliminó después en la migración 0039, no hace falta
+-- reconciliarlo.)
+--
+-- anon (sin sesión) no tiene ninguna razón legítima para llamar has_role()
+-- directo por RPC -- solo se necesita dentro de la evaluación de políticas
+-- RLS para sesiones autenticadas. Sin este revoke, anon podría sondear
+-- has_role(uuid, 'admin') para cualquier user_id mientras no ha iniciado
+-- sesión (enumeración de roles). Verificado en la base real: anon ya no
+-- puede ejecutar has_role (has_function_privilege = false); esta migración
+-- solo asegura que una base nueva, construida desde cero con estos
+-- archivos, termine en el mismo estado.
+revoke execute on function public.has_role(uuid, public.app_role) from anon;
