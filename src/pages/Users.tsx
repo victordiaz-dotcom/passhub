@@ -11,7 +11,7 @@ type Account = Tables<"profiles"> & {
   user_roles: Pick<Tables<"user_roles">, "role">[];
 };
 type Company = Pick<Tables<"companies">, "id" | "name">;
-type Office = Pick<Tables<"offices">, "id" | "name">;
+type Office = Pick<Tables<"offices">, "id" | "name" | "country">;
 
 // navigator.clipboard requiere contexto seguro (https o localhost) -- igual
 // que crypto.randomUUID (ver randomId() en CheckIn.tsx), falla en silencio
@@ -42,11 +42,17 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
+// México tiene dos oficinas (se elige aparte); Colombia y España son una
+// sola oficina por país, así que ahí basta con elegir el país.
+const COUNTRY_LABELS: Record<string, string> = { MX: "México", CO: "Colombia", ES: "España" };
+const COUNTRY_ORDER = ["MX", "CO", "ES"];
+
 const emptyForm = {
   email: "",
   username: "",
   fullName: "",
   companyId: "",
+  country: "",
   officeId: "",
   role: "recepcion",
   passwordMode: "auto" as "auto" | "custom",
@@ -110,30 +116,47 @@ export default function Users() {
       .then(({ data }) => setCompanies(data ?? []));
     supabase
       .from("offices")
-      .select("id, name")
+      .select("id, name, country")
       .order("name")
       .then(({ data }) => setOffices(data ?? []));
   }, []);
 
   // Si el admin que crea/edita tiene oficina asignada, se precarga y se
-  // deja fija esa oficina en el formulario (el selector queda deshabilitado
-  // más abajo) -- así nunca queda en blanco esperando que la elija de una
-  // lista que de todos modos solo tiene una opción visible para él.
+  // deja fijo el país/oficina en el formulario (los selectores quedan
+  // deshabilitados más abajo) -- así nunca queda en blanco esperando que
+  // los elija de una lista que de todos modos solo tiene una opción
+  // visible para él.
   useEffect(() => {
     if (officeLocked && callerOfficeId && !form.officeId) {
-      setForm((f) => ({ ...f, officeId: callerOfficeId }));
+      const callerOffice = offices.find((o) => o.id === callerOfficeId);
+      setForm((f) => ({ ...f, officeId: callerOfficeId, country: callerOffice?.country ?? f.country }));
     }
-  }, [officeLocked, callerOfficeId, form.officeId]);
+  }, [officeLocked, callerOfficeId, offices, form.officeId]);
+
+  // País → oficina: México tiene dos oficinas, así que elegir el país no
+  // resuelve la oficina todavía (se limpia y se pide elegir CDMX/Monterrey
+  // aparte); Colombia/España son una sola oficina, así que elegir el país
+  // ya resuelve la oficina sin un paso extra.
+  function handleCountryChange(country: string) {
+    if (country === "MX") {
+      setForm({ ...form, country, officeId: "" });
+      return;
+    }
+    const office = offices.find((o) => o.country === country);
+    setForm({ ...form, country, officeId: office?.id ?? "" });
+  }
 
   function startEdit(account: Account) {
     setError(null);
     setEditingId(account.id);
     setEditingOriginalEmail(account.email);
+    const accountOffice = offices.find((o) => o.id === account.office_id);
     setForm({
       email: account.email,
       username: account.username,
       fullName: account.full_name,
       companyId: account.company_id ?? "",
+      country: accountOffice?.country ?? "",
       officeId: account.office_id ?? "",
       role: account.user_roles[0]?.role ?? "recepcion",
       passwordMode: "auto",
@@ -149,13 +172,15 @@ export default function Users() {
   }
 
   async function handleCreate() {
+    // superadmin ve todo por rol, no por oficina -- nunca lleva office_id.
+    const officeId = form.role === "superadmin" ? null : form.officeId || null;
     const { data, error: invokeError } = await supabase.functions.invoke("create-user", {
       body: {
         email: form.email,
         username: form.username,
         fullName: form.fullName,
         companyId: form.companyId,
-        officeId: form.officeId || null,
+        officeId,
         role: form.role,
         password: form.passwordMode === "custom" ? form.customPassword : undefined,
         requireChange: form.requireChange,
@@ -191,7 +216,7 @@ export default function Users() {
       .update({
         full_name: form.fullName,
         company_id: form.companyId,
-        office_id: form.officeId || null,
+        office_id: form.role === "superadmin" ? null : form.officeId || null,
         username: form.username,
       })
       .eq("id", editingId);
@@ -233,6 +258,13 @@ export default function Users() {
 
     if (!form.companyId) {
       setError("Selecciona una empresa.");
+      return;
+    }
+
+    // superadmin ve todo por rol, así que no le aplica -- recepción, admin
+    // y guardia siempre deben quedar en una oficina concreta.
+    if (form.role !== "superadmin" && !form.officeId) {
+      setError("Selecciona una oficina.");
       return;
     }
 
@@ -434,30 +466,60 @@ export default function Users() {
             </select>
           </div>
 
-          <div>
-            <label htmlFor="office" className="mb-1 block text-sm font-medium text-ink-soft">
-              Oficina
-            </label>
-            <select
-              id="office"
-              value={form.officeId}
-              disabled={officeLocked}
-              onChange={(e) => setForm({ ...form, officeId: e.target.value })}
-              className="input-field h-auto py-2 disabled:opacity-60"
-            >
-              {!officeLocked && <option value="">Sin oficina (ve todas)</option>}
-              {(officeLocked ? offices.filter((o) => o.id === callerOfficeId) : offices).map((office) => (
-                <option key={office.id} value={office.id}>
-                  {office.name}
+          {form.role !== "superadmin" && (
+            <div>
+              <label htmlFor="country" className="mb-1 block text-sm font-medium text-ink-soft">
+                País
+              </label>
+              <select
+                id="country"
+                required
+                value={form.country}
+                disabled={officeLocked}
+                onChange={(e) => handleCountryChange(e.target.value)}
+                className="input-field h-auto py-2 disabled:opacity-60"
+              >
+                <option value="" disabled>
+                  Selecciona un país
                 </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-ink-soft">
-              {officeLocked
-                ? "Solo puedes crear/editar cuentas de tu propia oficina."
-                : "Deja \"Sin oficina\" para que la cuenta vea todas (como hoy)."}
-            </p>
-          </div>
+                {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
+                  <option key={code} value={code}>
+                    {COUNTRY_LABELS[code] ?? code}
+                  </option>
+                ))}
+              </select>
+              {officeLocked && (
+                <p className="mt-1 text-xs text-ink-soft">Solo puedes crear/editar cuentas de tu propia oficina.</p>
+              )}
+            </div>
+          )}
+
+          {form.role !== "superadmin" && form.country === "MX" && (
+            <div>
+              <label htmlFor="office" className="mb-1 block text-sm font-medium text-ink-soft">
+                Oficina
+              </label>
+              <select
+                id="office"
+                required
+                value={form.officeId}
+                disabled={officeLocked}
+                onChange={(e) => setForm({ ...form, officeId: e.target.value })}
+                className="input-field h-auto py-2 disabled:opacity-60"
+              >
+                <option value="" disabled>
+                  Selecciona una oficina
+                </option>
+                {offices
+                  .filter((o) => o.country === "MX")
+                  .map((office) => (
+                    <option key={office.id} value={office.id}>
+                      {office.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label htmlFor="role" className="mb-1 block text-sm font-medium text-ink-soft">
