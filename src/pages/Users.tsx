@@ -7,9 +7,11 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
   companies: Pick<Tables<"companies">, "name"> | null;
+  offices: Pick<Tables<"offices">, "name"> | null;
   user_roles: Pick<Tables<"user_roles">, "role">[];
 };
 type Company = Pick<Tables<"companies">, "id" | "name">;
+type Office = Pick<Tables<"offices">, "id" | "name">;
 
 // navigator.clipboard requiere contexto seguro (https o localhost) -- igual
 // que crypto.randomUUID (ver randomId() en CheckIn.tsx), falla en silencio
@@ -45,6 +47,7 @@ const emptyForm = {
   username: "",
   fullName: "",
   companyId: "",
+  officeId: "",
   role: "recepcion",
   passwordMode: "auto" as "auto" | "custom",
   customPassword: "",
@@ -53,10 +56,17 @@ const emptyForm = {
 
 
 export default function Users() {
-  const { session, isSuperadmin } = useAuth();
+  const { session, profile, isSuperadmin } = useAuth();
+  // Mismo criterio que las políticas RLS de employees (migración 0067):
+  // office_id null en el propio perfil = sin restricción. Un admin con
+  // oficina asignada solo puede crear/editar cuentas de esa misma oficina
+  // (lo valida también create-user del lado del servidor).
+  const callerOfficeId = profile?.office_id ?? null;
+  const officeLocked = !isSuperadmin && !!callerOfficeId;
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -85,7 +95,7 @@ export default function Users() {
     setLoading(true);
     const { data } = await supabase
       .from("profiles")
-      .select("*, companies(name), user_roles(role)")
+      .select("*, companies(name), offices(name), user_roles(role)")
       .order("full_name");
     setAccounts((data as Account[] | null) ?? []);
     setLoading(false);
@@ -98,7 +108,22 @@ export default function Users() {
       .select("id, name")
       .order("name")
       .then(({ data }) => setCompanies(data ?? []));
+    supabase
+      .from("offices")
+      .select("id, name")
+      .order("name")
+      .then(({ data }) => setOffices(data ?? []));
   }, []);
+
+  // Si el admin que crea/edita tiene oficina asignada, se precarga y se
+  // deja fija esa oficina en el formulario (el selector queda deshabilitado
+  // más abajo) -- así nunca queda en blanco esperando que la elija de una
+  // lista que de todos modos solo tiene una opción visible para él.
+  useEffect(() => {
+    if (officeLocked && callerOfficeId && !form.officeId) {
+      setForm((f) => ({ ...f, officeId: callerOfficeId }));
+    }
+  }, [officeLocked, callerOfficeId, form.officeId]);
 
   function startEdit(account: Account) {
     setError(null);
@@ -109,6 +134,7 @@ export default function Users() {
       username: account.username,
       fullName: account.full_name,
       companyId: account.company_id ?? "",
+      officeId: account.office_id ?? "",
       role: account.user_roles[0]?.role ?? "recepcion",
       passwordMode: "auto",
       customPassword: "",
@@ -129,6 +155,7 @@ export default function Users() {
         username: form.username,
         fullName: form.fullName,
         companyId: form.companyId,
+        officeId: form.officeId || null,
         role: form.role,
         password: form.passwordMode === "custom" ? form.customPassword : undefined,
         requireChange: form.requireChange,
@@ -161,7 +188,12 @@ export default function Users() {
 
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({ full_name: form.fullName, company_id: form.companyId, username: form.username })
+      .update({
+        full_name: form.fullName,
+        company_id: form.companyId,
+        office_id: form.officeId || null,
+        username: form.username,
+      })
       .eq("id", editingId);
 
     if (profileError) {
@@ -403,6 +435,31 @@ export default function Users() {
           </div>
 
           <div>
+            <label htmlFor="office" className="mb-1 block text-sm font-medium text-ink-soft">
+              Oficina
+            </label>
+            <select
+              id="office"
+              value={form.officeId}
+              disabled={officeLocked}
+              onChange={(e) => setForm({ ...form, officeId: e.target.value })}
+              className="input-field h-auto py-2 disabled:opacity-60"
+            >
+              {!officeLocked && <option value="">Sin oficina (ve todas)</option>}
+              {(officeLocked ? offices.filter((o) => o.id === callerOfficeId) : offices).map((office) => (
+                <option key={office.id} value={office.id}>
+                  {office.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-soft">
+              {officeLocked
+                ? "Solo puedes crear/editar cuentas de tu propia oficina."
+                : "Deja \"Sin oficina\" para que la cuenta vea todas (como hoy)."}
+            </p>
+          </div>
+
+          <div>
             <label htmlFor="role" className="mb-1 block text-sm font-medium text-ink-soft">
               Rol
             </label>
@@ -499,6 +556,7 @@ export default function Users() {
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Usuario</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Correo</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Empresa</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Oficina</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Rol</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
@@ -507,7 +565,7 @@ export default function Users() {
           <tbody>
             {!loading && accounts.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-soft">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-soft">
                   No hay cuentas registradas.
                 </td>
               </tr>
@@ -524,6 +582,7 @@ export default function Users() {
                   <td className="px-4 py-3 text-ink-soft">{account.username}</td>
                   <td className="px-4 py-3 text-ink-soft">{account.email}</td>
                   <td className="px-4 py-3 text-ink-soft">{account.companies?.name ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-soft">{account.offices?.name ?? "—"}</td>
                   <td className="px-4 py-3 text-ink-soft">
                     {account.user_roles.map((r) => ROLE_LABELS[r.role] ?? r.role).join(", ") || "—"}
                   </td>
