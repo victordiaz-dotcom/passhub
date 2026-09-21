@@ -50,9 +50,7 @@ export default function Dashboard() {
     if (viewMode === "analiticas") return;
 
     setLoading(true);
-    // Sin filtro de company_id: admin ve todas las empresas por diseño
-    // (RLS ya scoping esto — recepción, si algún día accede aquí, solo
-    // vería las de su propia empresa sin que este código cambie).
+    
     let query = supabase
       .from("visits")
       .select(
@@ -80,9 +78,7 @@ export default function Dashboard() {
     if (!session?.user) return;
     setCheckoutError(null);
 
-    // Admin (y recepción, y super admin, que también carga el rol admin)
-    // puede cerrar cualquier visita sin restricción, sin importar quién la
-    // haya registrado.
+    
     const { error } = await checkoutVisit(visitId, session.user.id);
 
     if (error) {

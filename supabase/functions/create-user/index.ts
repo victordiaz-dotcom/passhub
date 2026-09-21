@@ -150,16 +150,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Rol inválido." }, 400);
   }
 
-  // Otorgar admin o superadmin queda reservado a superadmin, para que un
-  // admin normal no pueda ascenderse a sí mismo ni repartir ese poder.
+
   if (ELEVATED_ROLES.includes(role) && !callerIsSuperadmin) {
     return jsonResponse({ error: "Solo un super admin puede crear cuentas de admin o super admin." }, 403);
   }
 
-  // El admin puede escribir la contraseña él mismo o dejar que se genere
-  // una automáticamente, y decide aparte (checkbox en el front, por
-  // defecto marcado) si la persona debe cambiarla al iniciar sesión por
-  // primera vez — ver must_change_password más abajo.
+ 
   if (password !== undefined && password.trim().length < 8) {
     return jsonResponse({ error: "La contraseña debe tener al menos 8 caracteres." }, 400);
   }
@@ -186,10 +182,7 @@ Deno.serve(async (req) => {
 
   const newUserId = created.user.id;
 
-  // must_change_password: el admin decide si la persona debe elegir su
-  // propia contraseña al iniciar sesión por primera vez (checkbox en el
-  // front, por defecto marcado) o si la que se le dio/generó ya queda como
-  // definitiva.
+
   const { error: profileError } = await adminClient.from("profiles").insert({
     id: newUserId,
     full_name: fullName,
@@ -218,10 +211,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "No se pudo asignar el rol." }, 400);
   }
 
-  // El trigger de user_roles ya registra grant_role, pero solo con
-  // user_id+role — este log adicional guarda nombre/correo/usuario de la
-  // cuenta creada, que es lo que de verdad se necesita para auditar "quién
-  // creó a quién".
   await adminClient.from("audit_logs").insert({
     actor_id: caller.id,
     action: "create_user",

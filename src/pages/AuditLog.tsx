@@ -20,9 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   update: "Visita actualizada",
 };
 
-// companies/divisions/visit_types comparten las acciones genéricas
-// "create"/"update" con visits (mismo log_audit) — se distinguen por
-// entity para no reusar la etiqueta de "Visita registrada/actualizada".
+
 const CATALOG_ENTITY_LABELS: Record<string, string> = {
   companies: "Empresa",
   divisions: "División",
