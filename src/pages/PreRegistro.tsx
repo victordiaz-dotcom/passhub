@@ -79,32 +79,6 @@ export default function PreRegistro() {
     setLangChosen(true);
   }
 
-  if (!langChosen) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-        <div className="card w-full max-w-sm p-8 text-center">
-          <img src="/logo.png" alt="PassHub" className="mx-auto mb-6 h-14 w-auto" />
-          <p className="mb-1 font-display text-lg font-bold text-ink">
-            ¿En qué idioma prefieres continuar?
-          </p>
-          <p className="mb-6 text-sm text-ink-soft">Which language would you like to continue in?</p>
-          <div className="flex flex-col gap-3">
-            <button type="button" onClick={() => chooseInitialLang("es")} className="btn-primary h-auto w-full py-2">
-              Español
-            </button>
-            <button
-              type="button"
-              onClick={() => chooseInitialLang("en")}
-              className="btn-secondary h-auto w-full py-2"
-            >
-              English
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // El campo "División" solo aparece si la empresa elegida tiene divisiones
   // registradas en la base de datos — nada hardcodeado a un nombre de
   // empresa en particular.
@@ -142,6 +116,41 @@ export default function PreRegistro() {
       .invoke("public-preregister", { body: { action: "fieldConfig" } })
       .then(({ data }) => setFields(data?.fields ?? []));
   }, []);
+
+  // El return anticipado va DESPUÉS de todos los hooks de arriba (useState/
+  // useEffect), nunca antes -- si estuviera antes, la primera vez que
+  // alguien entra sin idioma guardado, React registraría 0 useEffect en ese
+  // render; al elegir idioma y volver a renderizar SÍ se ejecutarían los 5
+  // useEffect, un número distinto de hooks entre renders (viola las Reglas
+  // de los Hooks) y React truena con un error que el ErrorBoundary global
+  // atrapa como pantalla de "Recargar". Los useEffect de arriba igual
+  // pueden ir cargando datos de fondo mientras se muestra esta pantalla;
+  // para cuando se elige idioma, ya están listos o casi.
+  if (!langChosen) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper p-6">
+        <div className="card w-full max-w-sm p-8 text-center">
+          <img src="/logo.png" alt="PassHub" className="mx-auto mb-6 h-14 w-auto" />
+          <p className="mb-1 font-display text-lg font-bold text-ink">
+            ¿En qué idioma prefieres continuar?
+          </p>
+          <p className="mb-6 text-sm text-ink-soft">Which language would you like to continue in?</p>
+          <div className="flex flex-col gap-3">
+            <button type="button" onClick={() => chooseInitialLang("es")} className="btn-primary h-auto w-full py-2">
+              Español
+            </button>
+            <button
+              type="button"
+              onClick={() => chooseInitialLang("en")}
+              className="btn-secondary h-auto w-full py-2"
+            >
+              English
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Etiqueta de un campo configurable: usa el override que haya puesto el
   // admin (en el idioma activo) si existe, si no cae al texto por defecto
