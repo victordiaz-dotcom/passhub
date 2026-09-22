@@ -155,6 +155,14 @@ export default function AuditLog() {
   const [dateTo, setDateTo] = useState("");
   const [category, setCategory] = useState<"cuentas" | "visitas" | "catalogos" | "todas">("cuentas");
   const [actorId, setActorId] = useState("");
+  // Mismo filtro que Historial ("Nombre del visitante"), pero acá el nombre
+  // vive dentro del jsonb `detail` (no es una columna propia de
+  // audit_logs), en una ruta distinta según la acción: detail.visitor_name
+  // en altas (audit_visits hace to_jsonb(new)) y detail.new.visitor_name en
+  // actualizaciones (guarda {old, new}) -- ver función audit_visits(). Con
+  // solo 200 filas cargadas a la vez, se filtra en el cliente en vez de
+  // armar un .or() de PostgREST sobre dos rutas jsonb distintas.
+  const [visitorNameQuery, setVisitorNameQuery] = useState("");
 
   useEffect(() => {
     supabase
@@ -202,6 +210,16 @@ export default function AuditLog() {
     }
     load();
   }, [dateFrom, dateTo, category, actorId]);
+
+  const visibleRows = useMemo(() => {
+    const query = visitorNameQuery.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) => {
+      const detail = row.detail as { visitor_name?: string; new?: { visitor_name?: string } } | null;
+      const visitorName = detail?.visitor_name ?? detail?.new?.visitor_name;
+      return visitorName?.toLowerCase().includes(query) ?? false;
+    });
+  }, [rows, visitorNameQuery]);
 
   const targetLabel = useMemo(
     () => (row: AuditRow) => {
@@ -284,13 +302,24 @@ export default function AuditLog() {
             ))}
           </select>
         </div>
-        {(dateFrom || dateTo || actorId || category !== "cuentas") && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-ink-soft">Nombre del visitante</label>
+          <input
+            type="text"
+            value={visitorNameQuery}
+            onChange={(e) => setVisitorNameQuery(e.target.value)}
+            placeholder="Buscar..."
+            className={filterInputClass}
+          />
+        </div>
+        {(dateFrom || dateTo || actorId || visitorNameQuery || category !== "cuentas") && (
           <button
             type="button"
             onClick={() => {
               setDateFrom("");
               setDateTo("");
               setActorId("");
+              setVisitorNameQuery("");
               setCategory("cuentas");
             }}
             className="text-sm font-medium text-ink-soft hover:text-ink"
@@ -312,14 +341,14 @@ export default function AuditLog() {
             </tr>
           </thead>
           <tbody>
-            {!loading && rows.length === 0 && (
+            {!loading && visibleRows.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-ink-soft">
                   No hay registros para este filtro.
                 </td>
               </tr>
             )}
-            {rows.map((row) => {
+            {visibleRows.map((row) => {
               const actor = row.actor_id ? profilesById[row.actor_id] : null;
               return (
                 <tr key={row.id} className="border-b border-line last:border-0">
