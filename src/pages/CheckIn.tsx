@@ -8,6 +8,7 @@ import { PhotoUploadField } from "@/components/PhotoUploadField";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { checkoutVisit } from "@/lib/checkout";
+import { copyToClipboard } from "@/lib/clipboard";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Pick<Tables<"employees">, "id" | "full_name">;
@@ -121,6 +122,7 @@ export default function CheckIn() {
   >(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState<boolean | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -494,15 +496,31 @@ export default function CheckIn() {
       <div className="mx-auto max-w-6xl px-6 py-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
           <h1 className="font-display text-xl font-bold text-ink">Registrar visita</h1>
-          <button
-            type="button"
-            onClick={() => setTab(tab === "registrar" ? "dentro" : "registrar")}
-            className="text-sm font-medium text-accent hover:text-accent-dark"
-          >
-            {tab === "registrar"
-              ? `Ver visitantes dentro${insideVisits.length > 0 ? ` (${insideVisits.length})` : ""}`
-              : "Volver a registrar"}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await copyToClipboard(`${window.location.origin}/pre-register`);
+                setLinkCopied(ok);
+              }}
+              className="btn-secondary h-auto px-2 py-1 text-xs"
+            >
+              {linkCopied === true
+                ? "¡Copiada!"
+                : linkCopied === false
+                  ? "No se pudo, cópiala tú"
+                  : "Copiar liga de pre-registro"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab(tab === "registrar" ? "dentro" : "registrar")}
+              className="text-sm font-medium text-accent hover:text-accent-dark"
+            >
+              {tab === "registrar"
+                ? `Ver visitantes dentro${insideVisits.length > 0 ? ` (${insideVisits.length})` : ""}`
+                : "Volver a registrar"}
+            </button>
+          </div>
         </div>
 
         {tab === "dentro" ? (

@@ -94,7 +94,7 @@ export default function Dashboard() {
   const companiesActive = new Set(visits.map((visit) => visit.company_id)).size;
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="mx-auto max-w-7xl p-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-xl font-bold text-ink">Panel de control</h1>
         <div className="flex flex-wrap items-center gap-2">
