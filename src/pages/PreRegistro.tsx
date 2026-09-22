@@ -68,6 +68,17 @@ export default function PreRegistro() {
   // nuevo.
   const [langChosen, setLangChosen] = useState(() => hasStoredLang());
   const t = PREREG_T[lang];
+  // Antes los 5 selects/sugerencias del formulario se quedaban vacíos
+  // hasta que cada llamada a public-preregister resolvía por su cuenta, y
+  // se iban "apareciendo de golpe" en momentos distintos según cada
+  // respuesta -- se ve mejor mostrar un solo estado de carga hasta que las
+  // 5 ya resolvieron (con o sin error) que dejar que el formulario se arme
+  // a pedazos frente a la persona.
+  const [loadedCount, setLoadedCount] = useState(0);
+  const dataReady = loadedCount >= 5;
+  function markLoaded() {
+    setLoadedCount((n) => n + 1);
+  }
 
   function changeLang(next: Lang) {
     setLang(next);
@@ -88,19 +99,22 @@ export default function PreRegistro() {
   useEffect(() => {
     supabase.functions
       .invoke("public-preregister", { body: { action: "companies" } })
-      .then(({ data }) => setCompanies(data?.companies ?? []));
+      .then(({ data }) => setCompanies(data?.companies ?? []))
+      .finally(markLoaded);
   }, []);
 
   useEffect(() => {
     supabase.functions
       .invoke("public-preregister", { body: { action: "divisions" } })
-      .then(({ data }) => setDivisions(data?.divisions ?? []));
+      .then(({ data }) => setDivisions(data?.divisions ?? []))
+      .finally(markLoaded);
   }, []);
 
   useEffect(() => {
     supabase.functions
       .invoke("public-preregister", { body: { action: "visitTypes" } })
-      .then(({ data }) => setVisitTypes(data?.visitTypes ?? []));
+      .then(({ data }) => setVisitTypes(data?.visitTypes ?? []))
+      .finally(markLoaded);
   }, []);
 
   useEffect(() => {
@@ -108,13 +122,15 @@ export default function PreRegistro() {
       .invoke("public-preregister", { body: { action: "visitorCompanies" } })
       .then(({ data }) =>
         setVisitorCompanySuggestions(mergeVisitorCompanySuggestions(data?.visitorCompanies ?? []))
-      );
+      )
+      .finally(markLoaded);
   }, []);
 
   useEffect(() => {
     supabase.functions
       .invoke("public-preregister", { body: { action: "fieldConfig" } })
-      .then(({ data }) => setFields(data?.fields ?? []));
+      .then(({ data }) => setFields(data?.fields ?? []))
+      .finally(markLoaded);
   }, []);
 
   // El return anticipado va DESPUÉS de todos los hooks de arriba (useState/
@@ -147,6 +163,17 @@ export default function PreRegistro() {
               English
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!dataReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper p-6">
+        <div className="card w-full max-w-sm p-8 text-center">
+          <img src="/logo.png" alt="PassHub" className="mx-auto mb-6 h-14 w-auto" />
+          <p className="text-sm text-ink-soft">{t.loading}</p>
         </div>
       </div>
     );
