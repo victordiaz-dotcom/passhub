@@ -8,6 +8,15 @@ type ProfileLite = { id: string; full_name: string; email: string };
 
 const filterInputClass = "input-field h-auto py-2 disabled:opacity-50";
 
+// Mismo criterio que Historial.tsx: fecha local, no UTC (evita que
+// "hoy" salte al día siguiente/anterior cerca de medianoche según el
+// huso horario de quien lo usa).
+function todayLocal() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
+}
+
 const ACTION_LABELS: Record<string, string> = {
   create_user: "Cuenta creada",
   reset_password: "Contraseña restablecida",
@@ -278,6 +287,17 @@ export default function AuditLog() {
             className={filterInputClass}
           />
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const today = todayLocal();
+            setDateFrom(today);
+            setDateTo(today);
+          }}
+          className="btn-secondary h-auto px-3 py-2 text-sm"
+        >
+          Hoy
+        </button>
         <div>
           <label className="mb-1 block text-xs font-medium text-ink-soft">Categoría</label>
           <select
