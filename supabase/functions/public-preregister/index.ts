@@ -116,12 +116,29 @@ Deno.serve(async (req) => {
 
   const action = body.action;
 
-  // 30 solicitudes / 5 min por IP: un visitante real dispara varias en una
-  // sola sesión de formulario (companies/divisions/visitTypes/create). "get"
-  // (la pantalla de confirmación, que se puede recargar varias veces) tiene
-  // su propio cupo separado, para que no compita con el del formulario.
-  const rateLimitBucket = action === "get" ? "public-preregister-get" : "public-preregister";
-  const allowed = await checkRateLimit(adminClient, rateLimitBucket, getClientIp(req), 30, 5);
+  // Cada carga de la página dispara 5 lookups de golpe (companies,
+  // divisions, visitTypes, visitorCompanies, fieldConfig) -- con un solo
+  // cupo compartido de 30/5min (como antes), bastaban 6 recargas de página
+  // para que un visitante real (o alguien probando) se quedara bloqueado
+  // sin haber llegado siquiera a enviar el formulario. Se separan en 3
+  // cupos: los lookups (baratos, de solo lectura) con margen amplio para
+  // varias recargas; "create" (la acción real a limitar contra spam) más
+  // ajustado pero generoso para una persona real; "get" (pantalla de
+  // confirmación) igual que antes.
+  const LOOKUP_ACTIONS = new Set(["companies", "divisions", "visitTypes", "visitorCompanies", "fieldConfig"]);
+  let rateLimitBucket: string;
+  let rateLimit: number;
+  if (action === "get") {
+    rateLimitBucket = "public-preregister-get";
+    rateLimit = 30;
+  } else if (typeof action === "string" && LOOKUP_ACTIONS.has(action)) {
+    rateLimitBucket = "public-preregister-lookup";
+    rateLimit = 60;
+  } else {
+    rateLimitBucket = "public-preregister-create";
+    rateLimit = 10;
+  }
+  const allowed = await checkRateLimit(adminClient, rateLimitBucket, getClientIp(req), rateLimit, 5);
   if (!allowed) {
     return jsonResponse({ error: "Demasiadas solicitudes. Espera unos minutos." }, 429);
   }

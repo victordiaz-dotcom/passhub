@@ -503,7 +503,7 @@ export default function CheckIn() {
                 const ok = await copyToClipboard(`${window.location.origin}/pre-register`);
                 setLinkCopied(ok);
               }}
-              className="btn-secondary h-auto px-2 py-1 text-xs"
+              className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint"
             >
               {linkCopied === true
                 ? "¡Copiada!"
