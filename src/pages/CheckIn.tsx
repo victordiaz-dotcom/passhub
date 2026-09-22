@@ -26,9 +26,7 @@ type InsideVisit = Pick<
 
 const QR_REGION_ID = "qr-reader-region";
 
-const inputClass = "input-field h-auto py-2 invalid:border-danger disabled:opacity-60";
 const plainSelectClass = "input-field h-auto py-2 disabled:opacity-60";
-const invalidSelectClass = "input-field h-auto appearance-none py-2 invalid:border-danger disabled:opacity-60";
 
 function todayLocal() {
   const now = new Date();
@@ -127,6 +125,14 @@ export default function CheckIn() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [folio, setFolio] = useState<string | null>(null);
+  // El borde rojo de "campo requerido vacío" (invalid:border-danger) solo
+  // debe verse después de que alguien intentó enviar el formulario y falló
+  // -- no desde que la pantalla carga con los campos vacíos, que es lo que
+  // pasaba al tener la clase invalid: puesta siempre (CSS :invalid se activa
+  // en cuanto el campo se renderiza vacío, sin importar si hubo interacción).
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const inputClass = `input-field h-auto py-2 disabled:opacity-60${attemptedSubmit ? " invalid:border-danger" : ""}`;
+  const invalidSelectClass = `input-field h-auto appearance-none py-2 disabled:opacity-60${attemptedSubmit ? " invalid:border-danger" : ""}`;
 
   useEffect(() => {
     // Cualquier cuenta (admin o recepción) puede elegir cualquier empresa:
@@ -336,6 +342,7 @@ export default function CheckIn() {
   }
 
   function resetForm() {
+    setAttemptedSubmit(false);
     setVisitorName("");
     setVisitorCompany("");
     setVisitorPhone("");
@@ -371,6 +378,7 @@ export default function CheckIn() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setAttemptedSubmit(true);
 
     if (!selectedCompanyId || !session?.user) {
       setError("Selecciona la empresa anfitriona.");
