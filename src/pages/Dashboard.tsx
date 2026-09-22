@@ -149,7 +149,7 @@ export default function Dashboard() {
       ) : (
         <>
       <div className="mb-6 flex justify-end">
-        <Link to="/catalogos" className="text-sm font-medium text-accent hover:text-accent-dark">
+        <Link to="/catalogs" className="text-sm font-medium text-accent hover:text-accent-dark">
           Administrar empresas, divisiones y tipos de visita →
         </Link>
       </div>

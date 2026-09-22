@@ -18,7 +18,7 @@ export default function Catalogs() {
   // siempre apunta a donde realmente se está corriendo la app (producción,
   // o localhost/otro host mientras se prueba), sin quedar mal si el
   // dominio de producción cambia algún día.
-  const preregistroUrl = `${window.location.origin}/pre-registro`;
+  const preregistroUrl = `${window.location.origin}/pre-register`;
 
   return (
     <div className="mx-auto max-w-4xl p-6">

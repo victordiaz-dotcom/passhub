@@ -404,7 +404,7 @@ export default function PreRegistro() {
       return;
     }
 
-    navigate(`/pre-registro/confirmacion/${data.token}?lang=${lang}`);
+    navigate(`/pre-register/confirmation/${data.token}?lang=${lang}`);
   }
 
   return (

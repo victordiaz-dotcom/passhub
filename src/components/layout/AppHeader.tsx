@@ -54,7 +54,7 @@ export function AppHeader() {
         <NavLink to="/" end className={navLinkClass}>
           Registrar visita
         </NavLink>
-        <NavLink to="/historial" className={navLinkClass}>
+        <NavLink to="/history" className={navLinkClass}>
           Historial
         </NavLink>
         {isAdmin && (
@@ -73,12 +73,12 @@ export function AppHeader() {
           </NavLink>
         )}
         {isAdmin && (
-          <NavLink to="/catalogos" className={navLinkClass}>
+          <NavLink to="/catalogs" className={navLinkClass}>
             Catálogos
           </NavLink>
         )}
         {isSuperadmin && (
-          <NavLink to="/auditoria" className={navLinkClass}>
+          <NavLink to="/audit-log" className={navLinkClass}>
             Auditoría
           </NavLink>
         )}

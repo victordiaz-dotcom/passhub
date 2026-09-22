@@ -22,7 +22,7 @@ export function ProtectedRoute({
   }
 
   if (profile?.must_change_password) {
-    return <Navigate to="/cambiar-password" replace />;
+    return <Navigate to="/change-password" replace />;
   }
 
   if (allowedRoles && !allowedRoles.some((r) => roles.includes(r))) {
