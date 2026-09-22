@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { copyToClipboard } from "@/lib/clipboard";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Company = Tables<"companies">;
@@ -11,10 +12,33 @@ type Tab = "empresas" | "divisiones" | "tipos" | "campos";
 
 export default function Catalogs() {
   const [tab, setTab] = useState<Tab>("empresas");
+  const [linkCopied, setLinkCopied] = useState<boolean | null>(null);
+
+  // window.location.origin en vez de un dominio fijo: así la liga copiada
+  // siempre apunta a donde realmente se está corriendo la app (producción,
+  // o localhost/otro host mientras se prueba), sin quedar mal si el
+  // dominio de producción cambia algún día.
+  const preregistroUrl = `${window.location.origin}/pre-registro`;
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="mb-1 font-display text-xl font-bold text-ink">Catálogos</h1>
+      <div className="mb-1 flex flex-wrap items-center gap-3">
+        <h1 className="font-display text-xl font-bold text-ink">Catálogos</h1>
+        <button
+          type="button"
+          onClick={async () => {
+            const ok = await copyToClipboard(preregistroUrl);
+            setLinkCopied(ok);
+          }}
+          className="btn-secondary h-auto px-2 py-1 text-xs"
+        >
+          {linkCopied === true
+            ? "¡Copiada!"
+            : linkCopied === false
+              ? "No se pudo, cópiala tú"
+              : "Copiar liga de pre-registro"}
+        </button>
+      </div>
       <p className="mb-6 text-sm text-ink-soft">
         Empresas anfitrionas, divisiones y tipos de visita que alimentan los desplegables de
         Registrar visita y el pre-registro público. Desactivar una fila no la borra ni afecta el

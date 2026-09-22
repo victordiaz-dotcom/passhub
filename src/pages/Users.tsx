@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { copyToClipboard } from "@/lib/clipboard";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
@@ -10,35 +11,6 @@ type Account = Tables<"profiles"> & {
   user_roles: Pick<Tables<"user_roles">, "role">[];
 };
 type Company = Pick<Tables<"companies">, "id" | "name">;
-
-// navigator.clipboard requiere contexto seguro (https o localhost) -- igual
-// que crypto.randomUUID (ver randomId() en CheckIn.tsx), falla en silencio
-// al entrar por IP local en http. Fallback con un textarea temporal +
-// execCommand, que sí funciona en contexto inseguro.
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // sigue al fallback
-  }
-  try {
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(textarea);
-    return ok;
-  } catch {
-    return false;
-  }
-}
 
 const emptyForm = {
   email: "",
