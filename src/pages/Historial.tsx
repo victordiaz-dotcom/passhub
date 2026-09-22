@@ -285,7 +285,7 @@ export default function Historial() {
   }, [isAdmin, view, frequencyRange, visitorNameQuery]);
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="mx-auto max-w-7xl p-6">
       <div className="mb-6">
         <h1 className="font-display text-xl font-bold text-ink">Historial de visitas</h1>
         <p className="text-sm text-ink-soft">
