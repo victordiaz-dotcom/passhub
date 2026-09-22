@@ -741,13 +741,12 @@ export default function CheckIn() {
 
                   <div>
                     <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
-                      Teléfono <span className="text-accent">*</span>
+                      Teléfono
                     </label>
                     <input
                       id="visitorPhone"
                       type="tel"
                       inputMode="numeric"
-                      required
                       disabled={!!folio}
                       value={visitorPhone}
                       onChange={(e) => setVisitorPhone(e.target.value.replace(/\D/g, ""))}
@@ -757,12 +756,11 @@ export default function CheckIn() {
 
                   <div>
                     <label htmlFor="visitorEmail" className="mb-1 block text-sm font-medium text-ink-soft">
-                      Correo electrónico <span className="text-accent">*</span>
+                      Correo electrónico
                     </label>
                     <input
                       id="visitorEmail"
                       type="email"
-                      required
                       disabled={!!folio}
                       value={visitorEmail}
                       onChange={(e) => setVisitorEmail(e.target.value)}
