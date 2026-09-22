@@ -76,6 +76,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const slackBotToken = Deno.env.get("SLACK_BOT_TOKEN");
 
   if (!slackBotToken) {
@@ -96,6 +97,27 @@ Deno.serve(async (req) => {
 
   if (!caller) {
     return jsonResponse({ error: "No autorizado." }, 401);
+  }
+
+  // Solo quien puede registrar/gestionar visitas debería disparar el
+  // aviso de Slack -- sin este chequeo, cualquier cuenta con sesión (ej.
+  // guardia, que solo tiene lectura de visitas "dentro" vía RLS) podía
+  // volver a mandar el DM de "tu invitado llegó" para cualquier visita
+  // que sí alcanza a ver, sin límite. Se usa la service role solo para
+  // esta consulta de rol (igual que el resto de las funciones), la
+  // consulta de la visita en sí sigue con el cliente del caller.
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  const { data: callerRoleRows } = await adminClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", caller.id);
+
+  const callerCanNotify = (callerRoleRows ?? []).some(
+    (r) => r.role === "admin" || r.role === "recepcion" || r.role === "superadmin"
+  );
+
+  if (!callerCanNotify) {
+    return jsonResponse({ error: "No autorizado." }, 403);
   }
 
   let body: { visitId?: string };
