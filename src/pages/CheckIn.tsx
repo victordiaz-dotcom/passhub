@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -133,6 +133,18 @@ export default function CheckIn() {
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const inputClass = `input-field h-auto py-2 disabled:opacity-60${attemptedSubmit ? " invalid:border-danger" : ""}`;
   const invalidSelectClass = `input-field h-auto appearance-none py-2 disabled:opacity-60${attemptedSubmit ? " invalid:border-danger" : ""}`;
+  // Tras un registro exitoso, el formulario se limpia solo después de unos
+  // segundos (da tiempo a ver el folio/pase generado sin que alguien tenga
+  // que darle clic a "Registrar otra visita") -- se guarda el id del
+  // setTimeout para poder cancelarlo si esa persona ya le dio clic manual
+  // antes de que se cumpla, o si sale de esta pantalla.
+  const autoResetTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (autoResetTimeoutRef.current !== null) window.clearTimeout(autoResetTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     // Cualquier cuenta (admin o recepción) puede elegir cualquier empresa:
@@ -371,6 +383,10 @@ export default function CheckIn() {
   }
 
   function startNewRegistration() {
+    if (autoResetTimeoutRef.current !== null) {
+      window.clearTimeout(autoResetTimeoutRef.current);
+      autoResetTimeoutRef.current = null;
+    }
     resetForm();
     setFolio(null);
   }
@@ -459,6 +475,14 @@ export default function CheckIn() {
 
     setFolio(data.folio);
     loadInsideVisits();
+
+    // Se limpia solo a los 5 segundos -- da tiempo a ver/verificar el folio
+    // y el pase generado antes de que desaparezcan, sin que nadie tenga que
+    // darle clic manual a "Registrar otra visita" (startNewRegistration ya
+    // cancela este timeout si sí le dan clic antes).
+    autoResetTimeoutRef.current = window.setTimeout(() => {
+      startNewRegistration();
+    }, 5000);
   }
 
   const hostEmployeeName = employees.find((employee) => employee.id === hostEmployeeId)?.full_name;
