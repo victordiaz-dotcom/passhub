@@ -1,21 +1,27 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://passhub.tendencys.com",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Permite el dominio real de producción y los orígenes de desarrollo local
+// (donde corre "npm run dev") -- antes estaba fijo solo a producción, lo
+// que rompía en silencio cualquier llamada a esta función al probar en
+// local, porque el navegador bloquea la respuesta si el origen no calza
+// exacto con Access-Control-Allow-Origin.
+const ALLOWED_ORIGINS = new Set([
+  "https://passhub.tendencys.com",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]);
+
+function corsHeadersFor(origin: string | null) {
+  return {
+    "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://passhub.tendencys.com",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 const ALLOWED_ROLES = ["admin", "recepcion", "superadmin", "guardia"];
 const ELEVATED_ROLES = ["admin", "superadmin"];
-
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
 
 // Contraseña temporal: 14 caracteres, sin ambiguos (0/O, 1/l/I), con al menos
 // un caracter de cada clase, generada con crypto (nunca Math.random()).
@@ -74,6 +80,18 @@ async function isPasswordPwned(password: string): Promise<boolean> {
 }
 
 Deno.serve(async (req) => {
+  // Cerrado sobre esta constante (no un corsHeaders global mutable): Deno
+  // puede procesar requests concurrentes en el mismo aislado, y una
+  // variable global reescrita en cada request tendría condición de carrera
+  // entre respuestas de distinto origen.
+  const corsHeaders = corsHeadersFor(req.headers.get("origin"));
+  function jsonResponse(body: unknown, status = 200) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
