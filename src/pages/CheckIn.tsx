@@ -824,7 +824,7 @@ export default function CheckIn() {
                   {isMonterreyOffice && (
                     <div className="sm:col-span-2">
                       <label htmlFor="facility" className="mb-1 block text-sm font-medium text-ink-soft">
-                        Instalación que visitan <span className="text-accent">*</span>
+                        Local 3 / Envia.com <span className="text-accent">*</span>
                       </label>
                       <select
                         id="facility"
