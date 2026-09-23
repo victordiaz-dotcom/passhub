@@ -434,6 +434,33 @@ export default function Users() {
             </select>
           </div>
 
+          <div>
+            <label htmlFor="role" className="mb-1 block text-sm font-medium text-ink-soft">
+              Rol
+            </label>
+            <select
+              id="role"
+              required
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="input-field h-auto py-2"
+            >
+              <option value="recepcion">Recepción</option>
+              <option value="guardia">Guardia</option>
+              {isSuperadmin && (
+                <>
+                  <option value="admin">Admin</option>
+                  <option value="superadmin">Super Admin</option>
+                </>
+              )}
+            </select>
+            {!isSuperadmin && (
+              <p className="mt-1 text-xs text-ink-soft">
+                Solo un super admin puede crear o editar cuentas de admin/super admin.
+              </p>
+            )}
+          </div>
+
           {form.role !== "superadmin" && (
             <div>
               <label htmlFor="country" className="mb-1 block text-sm font-medium text-ink-soft">
@@ -488,33 +515,6 @@ export default function Users() {
               </select>
             </div>
           )}
-
-          <div>
-            <label htmlFor="role" className="mb-1 block text-sm font-medium text-ink-soft">
-              Rol
-            </label>
-            <select
-              id="role"
-              required
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="input-field h-auto py-2"
-            >
-              <option value="recepcion">Recepción</option>
-              <option value="guardia">Guardia</option>
-              {isSuperadmin && (
-                <>
-                  <option value="admin">Admin</option>
-                  <option value="superadmin">Super Admin</option>
-                </>
-              )}
-            </select>
-            {!isSuperadmin && (
-              <p className="mt-1 text-xs text-ink-soft">
-                Solo un super admin puede crear o editar cuentas de admin/super admin.
-              </p>
-            )}
-          </div>
 
           {!isEditing && (
             <div className="sm:col-span-2 border-t border-line pt-4">
