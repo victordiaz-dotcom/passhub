@@ -713,6 +713,43 @@ export default function CheckIn() {
                   className="grid grid-cols-1 gap-4 sm:grid-cols-2"
                 >
                   <div>
+                    <label htmlFor="visitorName" className="mb-1 block text-sm font-medium text-ink-soft">
+                      Nombre del visitante <span className="text-accent">*</span>
+                    </label>
+                    <input
+                      id="visitorName"
+                      type="text"
+                      required
+                      disabled={!!folio}
+                      value={visitorName}
+                      onChange={(e) => setVisitorName(e.target.value)}
+                      className={inputClass}
+                    />
+                    {flaggedWarning && (
+                      <p className="mt-1.5 rounded-md border border-danger bg-danger/10 px-2 py-1.5 text-xs font-medium text-danger">
+                        ⚠️ Esta persona fue marcada antes por comportamiento violento/hostil
+                        {flaggedWarning.note ? `: "${flaggedWarning.note}"` : "."}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="visitorCompany" className="mb-1 block text-sm font-medium text-ink-soft">
+                      Empresa del visitante <span className="text-accent">*</span>
+                    </label>
+                    <AutoCompleteInput
+                      id="visitorCompany"
+                      required
+                      disabled={!!folio}
+                      placeholder="Ej. DHL, CFE, Amazon"
+                      suggestions={visitorCompanySuggestions}
+                      value={visitorCompany}
+                      onChange={setVisitorCompany}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
                     <label htmlFor="hostCompany" className="mb-1 block text-sm font-medium text-ink-soft">
                       Empresa anfitriona <span className="text-accent">*</span>
                     </label>
@@ -820,7 +857,7 @@ export default function CheckIn() {
                   )}
 
                   {hasFacilities && (
-                    <div className="sm:col-span-2">
+                    <div>
                       <label htmlFor="facility" className="mb-1 block text-sm font-medium text-ink-soft">
                         Instalación que visitan <span className="text-accent">*</span>
                       </label>
@@ -841,43 +878,6 @@ export default function CheckIn() {
                       </select>
                     </div>
                   )}
-
-                  <div>
-                    <label htmlFor="visitorName" className="mb-1 block text-sm font-medium text-ink-soft">
-                      Nombre del visitante <span className="text-accent">*</span>
-                    </label>
-                    <input
-                      id="visitorName"
-                      type="text"
-                      required
-                      disabled={!!folio}
-                      value={visitorName}
-                      onChange={(e) => setVisitorName(e.target.value)}
-                      className={inputClass}
-                    />
-                    {flaggedWarning && (
-                      <p className="mt-1.5 rounded-md border border-danger bg-danger/10 px-2 py-1.5 text-xs font-medium text-danger">
-                        ⚠️ Esta persona fue marcada antes por comportamiento violento/hostil
-                        {flaggedWarning.note ? `: "${flaggedWarning.note}"` : "."}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label htmlFor="visitorCompany" className="mb-1 block text-sm font-medium text-ink-soft">
-                      Empresa del visitante <span className="text-accent">*</span>
-                    </label>
-                    <AutoCompleteInput
-                      id="visitorCompany"
-                      required
-                      disabled={!!folio}
-                      placeholder="Ej. DHL, CFE, Amazon"
-                      suggestions={visitorCompanySuggestions}
-                      value={visitorCompany}
-                      onChange={setVisitorCompany}
-                      className={inputClass}
-                    />
-                  </div>
 
                   <div>
                     <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
