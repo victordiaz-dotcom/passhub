@@ -16,6 +16,7 @@ type Employee = Pick<Tables<"employees">, "id" | "full_name">;
 type Company = Pick<Tables<"companies">, "id" | "name">;
 type Division = Pick<Tables<"divisions">, "id" | "name">;
 type VisitType = Pick<Tables<"visit_types">, "id" | "name">;
+type OfficeFacility = Pick<Tables<"office_facilities">, "id" | "name">;
 
 const OTROS_SENTINEL = "__otros__";
 type InsideVisit = Pick<
@@ -106,10 +107,11 @@ export default function CheckIn() {
   const [reason, setReason] = useState("");
   const [division, setDivision] = useState("");
   const [facility, setFacility] = useState("");
-  // Solo la oficina de Monterrey pregunta a qué instalación visitan (L3 o
-  // instalaciones de Envia.com) -- no depende de la empresa elegida, sino
-  // de la oficina asignada a quien está registrando la visita.
-  const [isMonterreyOffice, setIsMonterreyOffice] = useState(false);
+  // El campo "Instalación que visitan" solo aparece si la oficina de quien
+  // registra tiene instalaciones registradas en office_facilities (ej.
+  // Monterrey: Local 3, Envia.com) -- nada hardcodeado a un nombre de
+  // oficina en particular, mismo criterio que "División" con las empresas.
+  const [officeFacilities, setOfficeFacilities] = useState<OfficeFacility[]>([]);
   const [visitDate, setVisitDate] = useState(todayLocal());
   const [visitTime, setVisitTime] = useState("");
   // Id de carpeta de Storage para las fotos de este intento de registro —
@@ -195,21 +197,16 @@ export default function CheckIn() {
   useEffect(() => {
     const officeId = profile?.office_id;
     if (!officeId) {
-      setIsMonterreyOffice(false);
+      setOfficeFacilities([]);
       return;
     }
-    let cancelled = false;
     supabase
-      .from("offices")
-      .select("name")
-      .eq("id", officeId)
-      .single()
-      .then(({ data }) => {
-        if (!cancelled) setIsMonterreyOffice(data?.name === "Monterrey");
-      });
-    return () => {
-      cancelled = true;
-    };
+      .from("office_facilities")
+      .select("id, name")
+      .eq("office_id", officeId)
+      .eq("active", true)
+      .order("name")
+      .then(({ data }) => setOfficeFacilities(data ?? []));
   }, [profile?.office_id]);
 
   useEffect(() => {
@@ -478,7 +475,7 @@ export default function CheckIn() {
       return;
     }
 
-    if (isMonterreyOffice && !facility) {
+    if (hasFacilities && !facility) {
       setError("Selecciona qué instalación visitan.");
       return;
     }
@@ -507,7 +504,7 @@ export default function CheckIn() {
         vehicle_model: hasVehicle ? vehicleModel || null : null,
         reason: reason || null,
         division: hasDivisions ? division || null : null,
-        facility: isMonterreyOffice ? facility || null : null,
+        facility: hasFacilities ? facility || null : null,
         visitor_photo_path: visitorPhotoPath,
         id_photo_path: idPhotoPath,
         created_by: session.user.id,
@@ -561,6 +558,7 @@ export default function CheckIn() {
   const hostEmployeeName = employees.find((employee) => employee.id === hostEmployeeId)?.full_name;
   const companyName = companies.find((company) => company.id === selectedCompanyId)?.name ?? null;
   const hasDivisions = divisions.length > 0;
+  const hasFacilities = officeFacilities.length > 0;
 
   return (
     <div className="min-h-screen bg-paper">
@@ -821,7 +819,7 @@ export default function CheckIn() {
                     </div>
                   )}
 
-                  {isMonterreyOffice && (
+                  {hasFacilities && (
                     <div className="sm:col-span-2">
                       <label htmlFor="facility" className="mb-1 block text-sm font-medium text-ink-soft">
                         Instalación que visitan <span className="text-accent">*</span>
@@ -835,8 +833,11 @@ export default function CheckIn() {
                         className={invalidSelectClass}
                       >
                         <option value="" disabled></option>
-                        <option value="Local 3">Local 3</option>
-                        <option value="Envia.com">Envia.com</option>
+                        {officeFacilities.map((option) => (
+                          <option key={option.id} value={option.name}>
+                            {option.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   )}

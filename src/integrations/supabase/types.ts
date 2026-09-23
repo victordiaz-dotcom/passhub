@@ -248,6 +248,38 @@ export type Database = {
           },
         ]
       }
+      office_facilities: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          office_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          office_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          office_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_facilities_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offices: {
         Row: {
           active: boolean
