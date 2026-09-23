@@ -8,7 +8,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
   companies: Pick<Tables<"companies">, "name"> | null;
-  offices: Pick<Tables<"offices">, "name"> | null;
+  offices: Pick<Tables<"offices">, "name" | "country"> | null;
   user_roles: Pick<Tables<"user_roles">, "role">[];
 };
 type Company = Pick<Tables<"companies">, "id" | "name">;
@@ -17,6 +17,10 @@ type Office = Pick<Tables<"offices">, "id" | "name" | "country">;
 // México tiene dos oficinas (se elige aparte); Colombia y España son una
 // sola oficina por país, así que ahí basta con elegir el país.
 const COUNTRY_LABELS: Record<string, string> = { MX: "México", CO: "Colombia", ES: "España" };
+// Identificador visual rápido de a qué país pertenece cada oficina/cuenta
+// (bandera junto al nombre) -- puramente decorativo, no afecta el
+// scoping real, que sigue siendo por office_id.
+const COUNTRY_FLAGS: Record<string, string> = { MX: "🇲🇽", CO: "🇨🇴", ES: "🇪🇸" };
 const COUNTRY_ORDER = ["MX", "CO", "ES"];
 
 const emptyForm = {
@@ -73,7 +77,7 @@ export default function Users() {
     setLoading(true);
     const { data } = await supabase
       .from("profiles")
-      .select("*, companies(name), offices(name), user_roles(role)")
+      .select("*, companies(name), offices(name, country), user_roles(role)")
       .order("full_name");
     setAccounts((data as Account[] | null) ?? []);
     setLoading(false);
@@ -456,7 +460,7 @@ export default function Users() {
                 </option>
                 {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
                   <option key={code} value={code}>
-                    {COUNTRY_LABELS[code] ?? code}
+                    {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
                   </option>
                 ))}
               </select>
@@ -616,7 +620,11 @@ export default function Users() {
                   <td className="px-4 py-3 text-ink-soft">{account.username}</td>
                   <td className="px-4 py-3 text-ink-soft">{account.email}</td>
                   <td className="px-4 py-3 text-ink-soft">{account.companies?.name ?? "—"}</td>
-                  <td className="px-4 py-3 text-ink-soft">{account.offices?.name ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-soft">
+                    {account.offices
+                      ? `${COUNTRY_FLAGS[account.offices.country] ?? ""} ${account.offices.name}`
+                      : "—"}
+                  </td>
                   <td className="px-4 py-3 text-ink-soft">
                     {account.user_roles.map((r) => ROLE_LABELS[r.role] ?? r.role).join(", ") || "—"}
                   </td>
