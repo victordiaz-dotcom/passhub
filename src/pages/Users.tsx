@@ -61,6 +61,7 @@ export default function Users() {
   const [copied, setCopied] = useState<boolean | null>(null);
 
   const [editingOriginalEmail, setEditingOriginalEmail] = useState("");
+  const [editingOriginalRoles, setEditingOriginalRoles] = useState<string[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const isEditing = editingId !== null;
@@ -118,6 +119,7 @@ export default function Users() {
     setError(null);
     setEditingId(account.id);
     setEditingOriginalEmail(account.email);
+    setEditingOriginalRoles(account.user_roles.map((r) => r.role));
     const accountOffice = offices.find((o) => o.id === account.office_id);
     setForm({
       email: account.email,
@@ -198,23 +200,44 @@ export default function Users() {
       return false;
     }
 
-    const { error: deleteRoleError } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", editingId);
+    // Bug reportado en producción: si la cuenta que edita se está editando a
+    // sí misma (ej. super admin cambiando su propio nombre) y antes se
+    // borraba el rol viejo primero, la policy de user_roles para roles
+    // admin/superadmin (migración 0016) exige has_role(auth.uid(),
+    // 'superadmin') en el momento de CADA operación -- al borrar su propio
+    // rol de superadmin primero, esa autorización desaparecía antes de
+    // poder insertar el rol nuevo. Si el INSERT fallaba por lo que fuera
+    // (incluida esa misma RLS), la cuenta se quedaba sin ningún rol y sin
+    // forma de arreglarlo ella misma. Por eso ahora: no se toca user_roles
+    // si el rol no cambió, y si cambió, se inserta el nuevo ANTES de borrar
+    // el viejo (nunca al revés).
+    const roleUnchanged = editingOriginalRoles.length === 1 && editingOriginalRoles[0] === form.role;
 
-    if (deleteRoleError) {
-      setError("No se pudo actualizar el rol.");
-      return false;
-    }
+    if (!roleUnchanged) {
+      if (!editingOriginalRoles.includes(form.role)) {
+        const { error: insertRoleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: editingId, role: form.role as "admin" | "recepcion" | "superadmin" | "guardia" });
 
-    const { error: insertRoleError } = await supabase
-      .from("user_roles")
-      .insert({ user_id: editingId, role: form.role as "admin" | "recepcion" | "superadmin" });
+        if (insertRoleError) {
+          setError("No se pudo actualizar el rol.");
+          return false;
+        }
+      }
 
-    if (insertRoleError) {
-      setError("No se pudo actualizar el rol.");
-      return false;
+      const rolesToRemove = editingOriginalRoles.filter((r) => r !== form.role);
+      if (rolesToRemove.length > 0) {
+        const { error: deleteRoleError } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", editingId)
+          .in("role", rolesToRemove as ("admin" | "recepcion" | "superadmin" | "guardia")[]);
+
+        if (deleteRoleError) {
+          setError("No se pudo actualizar el rol.");
+          return false;
+        }
+      }
     }
 
     return true;
