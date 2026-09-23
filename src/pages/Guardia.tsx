@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { APP_VERSION } from "@/lib/version";
+import { normalizeVisitorName } from "@/lib/flaggedVisitors";
 import type { Tables } from "@/integrations/supabase/types";
 
 type InsideVisit = Pick<
@@ -24,6 +25,16 @@ function initialOf(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?";
 }
 
+// Aviso de "persona vetada" reutilizable entre el recuadro de la lista y
+// el detalle -- mismo texto en los dos lugares.
+function FlaggedBadge() {
+  return (
+    <p className="mt-1 rounded-md border border-[#f44336] bg-[#f44336]/10 px-2 py-1 text-xs font-semibold text-[#f44336]">
+      ⚠️ Comportamiento violento/hostil reportado antes
+    </p>
+  );
+}
+
 // Vista de solo lectura para guardias de seguridad. A propósito no reutiliza
 // AppHeader/Layout (que traen links a Historial, Panel de control, etc.) —
 // un guardia solo debe ver esto y nada más. Pensada para celular: recuadros
@@ -34,6 +45,11 @@ export default function Guardia() {
   const [visits, setVisits] = useState<InsideVisit[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  // Nombres normalizados (de flagged_visitors) que coinciden con alguna de
+  // las visitas actualmente dentro -- solo informativo, guardia no puede
+  // marcar ni desmarcar a nadie, es de solo lectura igual que todo lo demás
+  // en esta pantalla.
+  const [flaggedNames, setFlaggedNames] = useState<Set<string>>(new Set());
 
   const [selectedVisit, setSelectedVisit] = useState<InsideVisit | null>(null);
   const [idPhotoUrl, setIdPhotoUrl] = useState<string | null>(null);
@@ -55,6 +71,19 @@ export default function Guardia() {
     const nextVisits = (data as InsideVisit[] | null) ?? [];
     setVisits(nextVisits);
     setLoading(false);
+
+    // Una sola consulta por refresco (no una por persona): solo los
+    // nombres normalizados de quienes están dentro ahora mismo.
+    const namesToCheck = Array.from(new Set(nextVisits.map((v) => normalizeVisitorName(v.visitor_name))));
+    if (namesToCheck.length > 0) {
+      const { data: flagged } = await supabase
+        .from("flagged_visitors")
+        .select("normalized_name")
+        .in("normalized_name", namesToCheck);
+      setFlaggedNames(new Set((flagged ?? []).map((f) => f.normalized_name).filter((n): n is string => !!n)));
+    } else {
+      setFlaggedNames(new Set());
+    }
 
     // La foto del visitante se muestra directamente en cada recuadro, así
     // que sus URLs firmadas (de solo lectura, expiran solas) se piden todas
@@ -169,6 +198,7 @@ export default function Guardia() {
               <p className="mt-1 text-sm text-[#6c757d]">
                 {formatDate(visit.check_in_at)} · {formatTime(visit.check_in_at)}
               </p>
+              {flaggedNames.has(normalizeVisitorName(visit.visitor_name)) && <FlaggedBadge />}
             </button>
           ))}
         </div>
@@ -183,7 +213,14 @@ export default function Guardia() {
       {selectedVisit && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-white">
           <div className="sticky top-0 z-10 flex items-center justify-between gap-2 bg-ink px-4 py-3 text-white">
-            <h3 className="truncate font-display text-base font-bold">{selectedVisit.visitor_name}</h3>
+            <div className="min-w-0">
+              <h3 className="truncate font-display text-base font-bold">{selectedVisit.visitor_name}</h3>
+              {flaggedNames.has(normalizeVisitorName(selectedVisit.visitor_name)) && (
+                <span className="text-xs font-semibold text-[#ff6b6b]">
+                  ⚠️ Comportamiento violento/hostil reportado antes
+                </span>
+              )}
+            </div>
             <button
               type="button"
               onClick={closeDetail}
