@@ -72,7 +72,7 @@ function randomId() {
 }
 
 export default function CheckIn() {
-  const { session, companyId } = useAuth();
+  const { session, companyId, profile } = useAuth();
 
   const [tab, setTab] = useState<"registrar" | "dentro">("registrar");
   const [insideVisits, setInsideVisits] = useState<InsideVisit[]>([]);
@@ -105,6 +105,11 @@ export default function CheckIn() {
   const [vehicleModel, setVehicleModel] = useState("");
   const [reason, setReason] = useState("");
   const [division, setDivision] = useState("");
+  const [facility, setFacility] = useState("");
+  // Solo la oficina de Monterrey pregunta a qué instalación visitan (L3 o
+  // instalaciones de Envia.com) -- no depende de la empresa elegida, sino
+  // de la oficina asignada a quien está registrando la visita.
+  const [isMonterreyOffice, setIsMonterreyOffice] = useState(false);
   const [visitDate, setVisitDate] = useState(todayLocal());
   const [visitTime, setVisitTime] = useState("");
   // Id de carpeta de Storage para las fotos de este intento de registro —
@@ -186,6 +191,26 @@ export default function CheckIn() {
       .order("name")
       .then(({ data }) => setDivisions(data ?? []));
   }, [selectedCompanyId]);
+
+  useEffect(() => {
+    const officeId = profile?.office_id;
+    if (!officeId) {
+      setIsMonterreyOffice(false);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("offices")
+      .select("name")
+      .eq("id", officeId)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled) setIsMonterreyOffice(data?.name === "Monterrey");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.office_id]);
 
   useEffect(() => {
     // Sin filtrar por empresa a propósito: quien recibe puede ser cualquier
@@ -410,6 +435,7 @@ export default function CheckIn() {
     setVehicleModel("");
     setReason("");
     setDivision("");
+    setFacility("");
     setVisitDate(todayLocal());
     setVisitTime("");
     setPhotoSessionId(randomId());
@@ -452,6 +478,11 @@ export default function CheckIn() {
       return;
     }
 
+    if (isMonterreyOffice && !facility) {
+      setError("Selecciona qué instalación visitan.");
+      return;
+    }
+
     setSubmitting(true);
 
     // Las fotos ya se subieron al elegirlas (PhotoUploadField) — misma ruta
@@ -476,6 +507,7 @@ export default function CheckIn() {
         vehicle_model: hasVehicle ? vehicleModel || null : null,
         reason: reason || null,
         division: hasDivisions ? division || null : null,
+        facility: isMonterreyOffice ? facility || null : null,
         visitor_photo_path: visitorPhotoPath,
         id_photo_path: idPhotoPath,
         created_by: session.user.id,
@@ -785,6 +817,26 @@ export default function CheckIn() {
                             {option.name}
                           </option>
                         ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {isMonterreyOffice && (
+                    <div className="sm:col-span-2">
+                      <label htmlFor="facility" className="mb-1 block text-sm font-medium text-ink-soft">
+                        Instalación que visitan <span className="text-accent">*</span>
+                      </label>
+                      <select
+                        id="facility"
+                        required
+                        disabled={!!folio}
+                        value={facility}
+                        onChange={(e) => setFacility(e.target.value)}
+                        className={invalidSelectClass}
+                      >
+                        <option value="" disabled></option>
+                        <option value="L3">L3</option>
+                        <option value="Instalaciones de Envia.com">Instalaciones de Envia.com</option>
                       </select>
                     </div>
                   )}

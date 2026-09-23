@@ -517,6 +517,7 @@ export type Database = {
           created_by: string
           created_by_name: string | null
           division: string | null
+          facility: string | null
           folio: string | null
           has_vehicle: boolean | null
           host_employee_id: string | null
@@ -546,6 +547,7 @@ export type Database = {
           created_by: string
           created_by_name?: string | null
           division?: string | null
+          facility?: string | null
           folio?: string | null
           has_vehicle?: boolean | null
           host_employee_id?: string | null
@@ -575,6 +577,7 @@ export type Database = {
           created_by?: string
           created_by_name?: string | null
           division?: string | null
+          facility?: string | null
           folio?: string | null
           has_vehicle?: boolean | null
           host_employee_id?: string | null
