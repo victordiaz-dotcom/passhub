@@ -161,6 +161,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          office_id: string | null
           slack_id: string | null
         }
         Insert: {
@@ -171,6 +172,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          office_id?: string | null
           slack_id?: string | null
         }
         Update: {
@@ -181,6 +183,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          office_id?: string | null
           slack_id?: string | null
         }
         Relationships: [
@@ -191,7 +194,38 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "employees_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      offices: {
+        Row: {
+          active: boolean
+          country: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          country: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          country?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       preregistro_fields: {
         Row: {
@@ -238,6 +272,7 @@ export type Database = {
           full_name: string
           id: string
           must_change_password: boolean
+          office_id: string | null
           username: string
         }
         Insert: {
@@ -248,6 +283,7 @@ export type Database = {
           full_name: string
           id: string
           must_change_password?: boolean
+          office_id?: string | null
           username: string
         }
         Update: {
@@ -258,6 +294,7 @@ export type Database = {
           full_name?: string
           id?: string
           must_change_password?: boolean
+          office_id?: string | null
           username?: string
         }
         Relationships: [
@@ -266,6 +303,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
             referencedColumns: ["id"]
           },
         ]
@@ -607,6 +651,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      my_office_id: { Args: never; Returns: string }
     }
     Enums: {
       app_role: "admin" | "recepcion" | "superadmin" | "guardia"

@@ -8,15 +8,24 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
   companies: Pick<Tables<"companies">, "name"> | null;
+  offices: Pick<Tables<"offices">, "name"> | null;
   user_roles: Pick<Tables<"user_roles">, "role">[];
 };
 type Company = Pick<Tables<"companies">, "id" | "name">;
+type Office = Pick<Tables<"offices">, "id" | "name" | "country">;
+
+// México tiene dos oficinas (se elige aparte); Colombia y España son una
+// sola oficina por país, así que ahí basta con elegir el país.
+const COUNTRY_LABELS: Record<string, string> = { MX: "México", CO: "Colombia", ES: "España" };
+const COUNTRY_ORDER = ["MX", "CO", "ES"];
 
 const emptyForm = {
   email: "",
   username: "",
   fullName: "",
   companyId: "",
+  country: "",
+  officeId: "",
   role: "recepcion",
   passwordMode: "auto" as "auto" | "custom",
   customPassword: "",
@@ -25,10 +34,17 @@ const emptyForm = {
 
 
 export default function Users() {
-  const { session, isSuperadmin } = useAuth();
+  const { session, profile, isSuperadmin } = useAuth();
+  // Mismo criterio que las políticas RLS de employees (migración 0069):
+  // office_id null en el propio perfil = sin restricción. Un admin con
+  // oficina asignada solo puede crear/editar cuentas de esa misma oficina
+  // (lo valida también create-user del lado del servidor).
+  const callerOfficeId = profile?.office_id ?? null;
+  const officeLocked = !isSuperadmin && !!callerOfficeId;
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -57,7 +73,7 @@ export default function Users() {
     setLoading(true);
     const { data } = await supabase
       .from("profiles")
-      .select("*, companies(name), user_roles(role)")
+      .select("*, companies(name), offices(name), user_roles(role)")
       .order("full_name");
     setAccounts((data as Account[] | null) ?? []);
     setLoading(false);
@@ -70,17 +86,50 @@ export default function Users() {
       .select("id, name")
       .order("name")
       .then(({ data }) => setCompanies(data ?? []));
+    supabase
+      .from("offices")
+      .select("id, name, country")
+      .order("name")
+      .then(({ data }) => setOffices(data ?? []));
   }, []);
+
+  // Si el admin que crea/edita tiene oficina asignada, se precarga y se
+  // deja fijo el país/oficina en el formulario (los selectores quedan
+  // deshabilitados más abajo) -- así nunca queda en blanco esperando que
+  // los elija de una lista que de todos modos solo tiene una opción
+  // visible para él.
+  useEffect(() => {
+    if (officeLocked && callerOfficeId && !form.officeId) {
+      const callerOffice = offices.find((o) => o.id === callerOfficeId);
+      setForm((f) => ({ ...f, officeId: callerOfficeId, country: callerOffice?.country ?? f.country }));
+    }
+  }, [officeLocked, callerOfficeId, offices, form.officeId]);
+
+  // País → oficina: México tiene dos oficinas, así que elegir el país no
+  // resuelve la oficina todavía (se limpia y se pide elegir CDMX/Monterrey
+  // aparte); Colombia/España son una sola oficina, así que elegir el país
+  // ya resuelve la oficina sin un paso extra.
+  function handleCountryChange(country: string) {
+    if (country === "MX") {
+      setForm({ ...form, country, officeId: "" });
+      return;
+    }
+    const office = offices.find((o) => o.country === country);
+    setForm({ ...form, country, officeId: office?.id ?? "" });
+  }
 
   function startEdit(account: Account) {
     setError(null);
     setEditingId(account.id);
     setEditingOriginalEmail(account.email);
+    const accountOffice = offices.find((o) => o.id === account.office_id);
     setForm({
       email: account.email,
       username: account.username,
       fullName: account.full_name,
       companyId: account.company_id ?? "",
+      country: accountOffice?.country ?? "",
+      officeId: account.office_id ?? "",
       role: account.user_roles[0]?.role ?? "recepcion",
       passwordMode: "auto",
       customPassword: "",
@@ -95,12 +144,15 @@ export default function Users() {
   }
 
   async function handleCreate() {
+    // superadmin ve todo por rol, no por oficina -- nunca lleva office_id.
+    const officeId = form.role === "superadmin" ? null : form.officeId || null;
     const { data, error: invokeError } = await supabase.functions.invoke("create-user", {
       body: {
         email: form.email,
         username: form.username,
         fullName: form.fullName,
         companyId: form.companyId,
+        officeId,
         role: form.role,
         password: form.passwordMode === "custom" ? form.customPassword : undefined,
         requireChange: form.requireChange,
@@ -133,7 +185,12 @@ export default function Users() {
 
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({ full_name: form.fullName, company_id: form.companyId, username: form.username })
+      .update({
+        full_name: form.fullName,
+        company_id: form.companyId,
+        office_id: form.role === "superadmin" ? null : form.officeId || null,
+        username: form.username,
+      })
       .eq("id", editingId);
 
     if (profileError) {
@@ -173,6 +230,13 @@ export default function Users() {
 
     if (!form.companyId) {
       setError("Selecciona una empresa.");
+      return;
+    }
+
+    // superadmin ve todo por rol, así que no le aplica -- recepción, admin
+    // y guardia siempre deben quedar en una oficina concreta.
+    if (form.role !== "superadmin" && !form.officeId) {
+      setError("Selecciona una oficina.");
       return;
     }
 
@@ -374,6 +438,61 @@ export default function Users() {
             </select>
           </div>
 
+          {form.role !== "superadmin" && (
+            <div>
+              <label htmlFor="country" className="mb-1 block text-sm font-medium text-ink-soft">
+                País
+              </label>
+              <select
+                id="country"
+                required
+                value={form.country}
+                disabled={officeLocked}
+                onChange={(e) => handleCountryChange(e.target.value)}
+                className="input-field h-auto py-2 disabled:opacity-60"
+              >
+                <option value="" disabled>
+                  Selecciona un país
+                </option>
+                {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
+                  <option key={code} value={code}>
+                    {COUNTRY_LABELS[code] ?? code}
+                  </option>
+                ))}
+              </select>
+              {officeLocked && (
+                <p className="mt-1 text-xs text-ink-soft">Solo puedes crear/editar cuentas de tu propia oficina.</p>
+              )}
+            </div>
+          )}
+
+          {form.role !== "superadmin" && form.country === "MX" && (
+            <div>
+              <label htmlFor="office" className="mb-1 block text-sm font-medium text-ink-soft">
+                Oficina
+              </label>
+              <select
+                id="office"
+                required
+                value={form.officeId}
+                disabled={officeLocked}
+                onChange={(e) => setForm({ ...form, officeId: e.target.value })}
+                className="input-field h-auto py-2 disabled:opacity-60"
+              >
+                <option value="" disabled>
+                  Selecciona una oficina
+                </option>
+                {offices
+                  .filter((o) => o.country === "MX")
+                  .map((office) => (
+                    <option key={office.id} value={office.id}>
+                      {office.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label htmlFor="role" className="mb-1 block text-sm font-medium text-ink-soft">
               Rol
@@ -471,6 +590,7 @@ export default function Users() {
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Usuario</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Correo</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Empresa</th>
+              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Oficina</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Rol</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
               <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
@@ -479,7 +599,7 @@ export default function Users() {
           <tbody>
             {!loading && accounts.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-soft">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-soft">
                   No hay cuentas registradas.
                 </td>
               </tr>
@@ -496,6 +616,7 @@ export default function Users() {
                   <td className="px-4 py-3 text-ink-soft">{account.username}</td>
                   <td className="px-4 py-3 text-ink-soft">{account.email}</td>
                   <td className="px-4 py-3 text-ink-soft">{account.companies?.name ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-soft">{account.offices?.name ?? "—"}</td>
                   <td className="px-4 py-3 text-ink-soft">
                     {account.user_roles.map((r) => ROLE_LABELS[r.role] ?? r.role).join(", ") || "—"}
                   </td>

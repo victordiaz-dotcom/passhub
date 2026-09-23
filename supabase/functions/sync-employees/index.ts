@@ -119,6 +119,33 @@ Deno.serve(async (req) => {
     return match?.id ?? fallbackCompany.id;
   }
 
+  const { data: offices } = await adminClient.from("offices").select("id, name, country");
+
+  // México tiene dos oficinas (Cd. de México y Monterrey), así que ahí se
+  // distingue por "city"; Colombia y España son una sola oficina cada una,
+  // así que ahí basta con "country" — confirmado con el usuario. Si un
+  // colaborador de México no trae exactamente "CDMX" o "Monterrey" en
+  // city, o si el país no tiene ninguna oficina registrada, se deja
+  // office_id en null (no se adivina) y queda logueado para revisar.
+  function resolveOfficeId(country: unknown, city: unknown): string | null {
+    const countryCode = typeof country === "string" ? country.trim().toUpperCase() : "";
+    if (!countryCode || !offices) return null;
+
+    if (countryCode === "MX") {
+      const cityNorm = typeof city === "string" ? normalize(city) : "";
+      if (cityNorm === normalize("Monterrey")) {
+        return offices.find((o) => normalize(o.name) === normalize("Monterrey"))?.id ?? null;
+      }
+      if (cityNorm === normalize("CDMX")) {
+        return offices.find((o) => normalize(o.name) === normalize("Cd. de México"))?.id ?? null;
+      }
+      return null;
+    }
+
+    // Un solo office por país fuera de México (Colombia, España, ...).
+    return offices.find((o) => o.country === countryCode)?.id ?? null;
+  }
+
   let slackUsers: Array<Record<string, unknown>>;
   try {
     const res = await fetch(SLACK_USERS_ENDPOINT, {
@@ -232,10 +259,12 @@ Deno.serve(async (req) => {
   ]);
 
   // Solo personas activas, con slack_id y real_name válidos, que no
-  // parezcan una cuenta de puesto/rol genérico, y de México — el
-  // directorio de Slack incluye personal de otros países (AR, CO, IN,
-  // etc.), pero esta empresa solo quiere sincronizar/mostrar como
-  // colaboradores a quienes tengan country = 'MX'.
+  // parezcan una cuenta de puesto/rol genérico, y de un país con oficina
+  // registrada en PassHub (MX, CO, ES por ahora — ver tabla offices) — el
+  // directorio de Slack incluye personal de otros países (AR, IN, etc.)
+  // que todavía no tienen oficina asignada en el sistema, así que se
+  // siguen dejando fuera para no mostrar colaboradores sin office_id.
+  const SYNCED_COUNTRIES = new Set(["MX", "CO", "ES"]);
   const validUsers = slackUsers.filter(
     (u) =>
       u.status === "active" &&
@@ -246,7 +275,8 @@ Deno.serve(async (req) => {
       !PLACEHOLDER_ROLE_NAME.test((u.real_name as string).trim()) &&
       !PLACEHOLDER_TEAM_LEAD_PREFIX.test((u.real_name as string).trim()) &&
       !PLACEHOLDER_EXACT_NAMES.has((u.real_name as string).trim().toLowerCase()) &&
-      u.country === "MX"
+      typeof u.country === "string" &&
+      SYNCED_COUNTRIES.has(u.country)
   );
 
   if (validUsers.length === 0) {
@@ -259,6 +289,19 @@ Deno.serve(async (req) => {
     validUsers.map((u) => (typeof u.organization === "string" ? u.organization : "(vacío)"))
   );
   console.log("Valores de 'organization' en el directorio de Slack:", Array.from(orgValues));
+
+  // Diagnóstico: colaboradores de México cuyo "city" no matcheó ni
+  // "CDMX" ni "Monterrey" — según lo confirmado, no debería pasar, pero
+  // si pasa quedan sin office_id (null) y se loguea para revisar en vez
+  // de asignarles una oficina por default.
+  const unmatchedMxCities = new Set(
+    validUsers
+      .filter((u) => u.country === "MX" && resolveOfficeId(u.country, u.city) === null)
+      .map((u) => (typeof u.city === "string" && u.city.trim() ? u.city.trim() : "(vacío)"))
+  );
+  if (unmatchedMxCities.size > 0) {
+    console.log("Ciudades de México sin oficina reconocida (quedan sin office_id):", Array.from(unmatchedMxCities));
+  }
 
   // Un batch de upsert usa la unión de llaves de todo el array: si una fila
   // sin correo resuelto llevara "email: null" mezclada con filas que sí
@@ -273,6 +316,7 @@ Deno.serve(async (req) => {
     active: true;
     email: string;
     country: string | null;
+    office_id: string | null;
   }> = [];
   const rowsWithoutEmail: Array<{
     slack_id: string;
@@ -280,6 +324,7 @@ Deno.serve(async (req) => {
     company_id: string;
     active: true;
     country: string | null;
+    office_id: string | null;
   }> = [];
 
   for (const u of validUsers) {
@@ -288,11 +333,12 @@ Deno.serve(async (req) => {
     const email = emailBySlackId.get(slackId);
     const company_id = resolveCompanyId(u.organization);
     const country = typeof u.country === "string" && u.country.trim() ? u.country.trim() : null;
+    const office_id = resolveOfficeId(u.country, u.city);
 
     if (email) {
-      rowsWithEmail.push({ slack_id: slackId, full_name, company_id, active: true, email, country });
+      rowsWithEmail.push({ slack_id: slackId, full_name, company_id, active: true, email, country, office_id });
     } else {
-      rowsWithoutEmail.push({ slack_id: slackId, full_name, company_id, active: true, country });
+      rowsWithoutEmail.push({ slack_id: slackId, full_name, company_id, active: true, country, office_id });
     }
   }
 

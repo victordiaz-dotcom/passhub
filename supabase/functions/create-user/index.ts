@@ -142,11 +142,22 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Solo un administrador puede crear cuentas." }, 403);
   }
 
+  // company_id/office_id del propio caller: null en cualquiera de los dos
+  // significa "sin restricción" (mismo criterio que las políticas RLS de
+  // employees, ver migración 0069) — un admin sin oficina/empresa asignada
+  // puede crear cuentas en cualquiera. superadmin nunca se restringe.
+  const { data: callerProfile } = await adminClient
+    .from("profiles")
+    .select("company_id, office_id")
+    .eq("id", caller.id)
+    .single();
+
   let body: {
     email?: string;
     username?: string;
     fullName?: string;
     companyId?: string;
+    officeId?: string | null;
     role?: string;
     password?: string;
     requireChange?: boolean;
@@ -158,6 +169,7 @@ Deno.serve(async (req) => {
   }
 
   const { email, fullName, companyId, role, password, requireChange } = body;
+  const officeId = body.officeId?.trim() || null;
   const username = body.username?.trim().toLowerCase();
 
   if (!email || !username || !fullName || !companyId || !role) {
@@ -171,6 +183,14 @@ Deno.serve(async (req) => {
 
   if (ELEVATED_ROLES.includes(role) && !callerIsSuperadmin) {
     return jsonResponse({ error: "Solo un super admin puede crear cuentas de admin o super admin." }, 403);
+  }
+
+  if (!callerIsSuperadmin && callerProfile?.company_id && companyId !== callerProfile.company_id) {
+    return jsonResponse({ error: "Solo puedes crear cuentas dentro de tu propia empresa." }, 403);
+  }
+
+  if (!callerIsSuperadmin && callerProfile?.office_id && officeId !== callerProfile.office_id) {
+    return jsonResponse({ error: "Solo puedes crear cuentas dentro de tu propia oficina." }, 403);
   }
 
  
@@ -207,6 +227,7 @@ Deno.serve(async (req) => {
     email,
     username,
     company_id: companyId,
+    office_id: officeId,
     active: true,
     must_change_password: requireChange ?? true,
   });
@@ -234,7 +255,14 @@ Deno.serve(async (req) => {
     action: "create_user",
     entity: "profiles",
     entity_id: newUserId,
-    detail: { full_name: fullName, email, username, role, passwordMode: password !== undefined ? "manual" : "auto" },
+    detail: {
+      full_name: fullName,
+      email,
+      username,
+      role,
+      officeId,
+      passwordMode: password !== undefined ? "manual" : "auto",
+    },
   });
 
   return jsonResponse({ userId: newUserId, email, tempPassword });
