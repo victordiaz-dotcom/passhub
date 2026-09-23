@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { APP_VERSION } from "@/lib/version";
 import { normalizeVisitorName } from "@/lib/flaggedVisitors";
+import { COUNTRY_FLAGS } from "@/lib/countryFlags";
 import type { Tables } from "@/integrations/supabase/types";
 
 type InsideVisit = Pick<
@@ -41,7 +42,10 @@ function FlaggedBadge() {
 // grandes y tocables en vez de una tabla, que en pantallas angostas obliga a
 // hacer scroll horizontal.
 export default function Guardia() {
-  const { signOut } = useAuth();
+  const { profile, signOut } = useAuth();
+  // office_id null = sin oficina asignada -- no se muestra bandera, mismo
+  // criterio que AppHeader.tsx.
+  const [officeCountry, setOfficeCountry] = useState<string | null>(null);
   const [visits, setVisits] = useState<InsideVisit[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -110,6 +114,26 @@ export default function Guardia() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const officeId = profile?.office_id;
+    if (!officeId) {
+      setOfficeCountry(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("offices")
+      .select("country")
+      .eq("id", officeId)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled) setOfficeCountry(data?.country ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.office_id]);
+
   async function openDetail(visit: InsideVisit) {
     setSelectedVisit(visit);
     setIdPhotoUrl(null);
@@ -144,7 +168,9 @@ export default function Guardia() {
               <h1 className="font-display text-base font-bold leading-tight">
                 PassHub <span className="text-white/50">{APP_VERSION}</span>
               </h1>
-              <p className="text-xs text-white/50">Guardia</p>
+              <p className="text-xs text-white/50">
+                Guardia{officeCountry && <span className="ml-1">{COUNTRY_FLAGS[officeCountry] ?? ""}</span>}
+              </p>
             </div>
           </div>
           <button type="button" onClick={() => signOut()} className="text-xs text-white/50 hover:text-white/80">

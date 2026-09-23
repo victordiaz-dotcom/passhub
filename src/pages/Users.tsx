@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { copyToClipboard } from "@/lib/clipboard";
+import { COUNTRY_FLAGS, COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Account = Tables<"profiles"> & {
@@ -13,15 +14,6 @@ type Account = Tables<"profiles"> & {
 };
 type Company = Pick<Tables<"companies">, "id" | "name">;
 type Office = Pick<Tables<"offices">, "id" | "name" | "country">;
-
-// México tiene dos oficinas (se elige aparte); Colombia y España son una
-// sola oficina por país, así que ahí basta con elegir el país.
-const COUNTRY_LABELS: Record<string, string> = { MX: "México", CO: "Colombia", ES: "España" };
-// Identificador visual rápido de a qué país pertenece cada oficina/cuenta
-// (bandera junto al nombre) -- puramente decorativo, no afecta el
-// scoping real, que sigue siendo por office_id.
-const COUNTRY_FLAGS: Record<string, string> = { MX: "🇲🇽", CO: "🇨🇴", ES: "🇪🇸" };
-const COUNTRY_ORDER = ["MX", "CO", "ES"];
 
 const emptyForm = {
   email: "",

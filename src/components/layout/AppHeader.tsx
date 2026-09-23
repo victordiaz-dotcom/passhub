@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { APP_VERSION } from "@/lib/version";
 import { ROLE_LABELS } from "@/lib/roles";
+import { COUNTRY_FLAGS } from "@/lib/countryFlags";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 // font-medium siempre presente (no solo en isActive): si el peso de la
@@ -17,6 +20,30 @@ export function AppHeader() {
   const { profile, roles, isAdmin, isSuperadmin, signOut } = useAuth();
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? "Usuario";
   const roleLabel = roles.map((role) => ROLE_LABELS[role] ?? role).join(", ");
+  // office_id null = sin oficina asignada (superadmin, o admin sin
+  // restricción) -- en ese caso no se muestra bandera, mismo criterio que
+  // se usa en RLS y en Users.tsx.
+  const [officeCountry, setOfficeCountry] = useState<string | null>(null);
+
+  useEffect(() => {
+    const officeId = profile?.office_id;
+    if (!officeId) {
+      setOfficeCountry(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("offices")
+      .select("country")
+      .eq("id", officeId)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled) setOfficeCountry(data?.country ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.office_id]);
 
   return (
     // sticky en vez de fixed: el header ocupa su alto real dentro del flujo
@@ -37,6 +64,7 @@ export function AppHeader() {
         <div className="flex flex-wrap items-center gap-3">
           <ThemeToggle />
           <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
+            {officeCountry && <span className="mr-1">{COUNTRY_FLAGS[officeCountry] ?? ""}</span>}
             {firstName}
             {roleLabel && <span className="text-white/50"> · {roleLabel}</span>}
           </span>
