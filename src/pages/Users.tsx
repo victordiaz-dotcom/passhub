@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { copyToClipboard } from "@/lib/clipboard";
 import { COUNTRY_FLAGS, COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
 import type { Tables } from "@/integrations/supabase/types";
@@ -63,6 +64,12 @@ export default function Users() {
   const [editingOriginalEmail, setEditingOriginalEmail] = useState("");
   const [editingOriginalRoles, setEditingOriginalRoles] = useState<string[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Account | null>(null);
+  // Colapsado por defecto: "Nueva cuenta" solo se despliega si el usuario
+  // le da clic, para no tapar la lista con un formulario largo que la
+  // mayoría de las veces no se va a usar. Editar una cuenta existente
+  // siempre despliega el formulario (ver más abajo), sin depender de esto.
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const isEditing = editingId !== null;
 
@@ -139,6 +146,7 @@ export default function Users() {
     setEditingId(null);
     setForm(emptyForm);
     setError(null);
+    setShowCreateForm(false);
   }
 
   async function handleCreate() {
@@ -272,6 +280,7 @@ export default function Users() {
 
     setEditingId(null);
     setForm(emptyForm);
+    setShowCreateForm(false);
     loadAccounts();
   }
 
@@ -320,14 +329,17 @@ export default function Users() {
     setTempPasswordInfo({ email: data.email, tempPassword: data.tempPassword, context: "restablecida" });
   }
 
-  async function toggleActive(account: Account) {
+  function handleToggleClick(account: Account) {
+    // Desactivar sí se confirma (bloquea el acceso de inmediato); reactivar
+    // no necesita confirmación, es una acción reversible y de bajo riesgo.
     if (account.active) {
-      const confirmed = window.confirm(
-        `¿Desactivar a ${account.full_name}? Perderá acceso de inmediato. Su historial de visitas y auditoría no se borra, y puedes reactivarla cuando quieras.`
-      );
-      if (!confirmed) return;
+      setDeactivateTarget(account);
+      return;
     }
+    toggleActive(account);
+  }
 
+  async function toggleActive(account: Account) {
     setTogglingId(account.id);
 
     const { data, error: invokeError } = await supabase.functions.invoke("set-account-active", {
@@ -382,10 +394,22 @@ export default function Users() {
       )}
 
       <div className="card mb-6">
-        <h2 className="mb-4 font-display text-base font-bold text-ink">
-          {isEditing ? "Editar cuenta" : "Nueva cuenta"}
-        </h2>
+        {isEditing ? (
+          <h2 className="mb-4 font-display text-base font-bold text-ink">Editar cuenta</h2>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowCreateForm((s) => !s)}
+            className={`flex w-full items-center justify-between text-left ${showCreateForm ? "mb-4" : ""}`}
+          >
+            <h2 className="font-display text-base font-bold text-ink">Nueva cuenta</h2>
+            <span className="text-sm font-medium text-accent">
+              {showCreateForm ? "Ocultar ▲" : "+ Crear cuenta ▼"}
+            </span>
+          </button>
+        )}
 
+        {(isEditing || showCreateForm) && (
         <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="fullName" className="mb-1 block text-sm font-medium text-ink-soft">
@@ -593,10 +617,24 @@ export default function Users() {
                 Cancelar
               </button>
             )}
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={() => {
+                  setForm(emptyForm);
+                  setError(null);
+                  setShowCreateForm(false);
+                }}
+                className="btn-secondary"
+              >
+                Cancelar
+              </button>
+            )}
           </div>
 
           {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
         </form>
+        )}
       </div>
 
       <h2 className="mb-4 font-display text-base font-bold text-ink">Cuentas registradas</h2>
@@ -684,7 +722,7 @@ export default function Users() {
                                 ? "Bloquea el acceso de la persona. No borra su cuenta ni su historial."
                                 : "Restaura su acceso."
                           }
-                          onClick={() => toggleActive(account)}
+                          onClick={() => handleToggleClick(account)}
                           className="text-sm font-medium text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {togglingId === account.id
@@ -781,6 +819,24 @@ export default function Users() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deactivateTarget}
+        title="Desactivar cuenta"
+        message={
+          deactivateTarget
+            ? `¿Desactivar a ${deactivateTarget.full_name}? Perderá acceso de inmediato. Su historial de visitas y auditoría no se borra, y puedes reactivarla cuando quieras.`
+            : undefined
+        }
+        confirmLabel="Desactivar"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={() => {
+          if (deactivateTarget) toggleActive(deactivateTarget);
+          setDeactivateTarget(null);
+        }}
+        onCancel={() => setDeactivateTarget(null)}
+      />
     </div>
   );
 }
