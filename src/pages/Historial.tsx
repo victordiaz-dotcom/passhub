@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { checkoutVisit } from "@/lib/checkout";
+import { flagVisitor } from "@/lib/flaggedVisitors";
 import type { Tables } from "@/integrations/supabase/types";
 
 type VisitRow = Pick<
@@ -100,6 +101,8 @@ export default function Historial() {
   const [loading, setLoading] = useState(true);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutTarget, setCheckoutTarget] = useState<VisitRow | null>(null);
+  const [checkoutFlagged, setCheckoutFlagged] = useState(false);
+  const [checkoutNote, setCheckoutNote] = useState("");
   const [preregs, setPreregs] = useState<PreregRow[]>([]);
   const [preregLoading, setPreregLoading] = useState(true);
   const [extensionDrafts, setExtensionDrafts] = useState<Record<string, string>>({});
@@ -161,11 +164,11 @@ export default function Historial() {
     setLoading(false);
   }
 
-  async function handleCheckout(visitId: string) {
+  async function handleCheckout(visit: VisitRow) {
     if (!session?.user) return;
     setCheckoutError(null);
 
-    const { error } = await checkoutVisit(visitId, session.user.id);
+    const { error } = await checkoutVisit(visit.id, session.user.id);
 
     if (error) {
       console.error(error);
@@ -173,6 +176,18 @@ export default function Historial() {
       return;
     }
 
+    if (checkoutFlagged) {
+      const { error: flagError } = await flagVisitor({
+        fullName: visit.visitor_name,
+        note: checkoutNote,
+        visitId: visit.id,
+        flaggedBy: session.user.id,
+      });
+      if (flagError) console.error("No se pudo guardar la marca de comportamiento:", flagError);
+    }
+
+    setCheckoutFlagged(false);
+    setCheckoutNote("");
     loadVisits();
   }
 
@@ -673,11 +688,34 @@ export default function Historial() {
         title="¿Registrar la salida de este visitante?"
         message={checkoutTarget ? `Se registrará la salida de ${checkoutTarget.visitor_name}.` : undefined}
         onConfirm={() => {
-          if (checkoutTarget) handleCheckout(checkoutTarget.id);
+          if (checkoutTarget) handleCheckout(checkoutTarget);
           setCheckoutTarget(null);
         }}
-        onCancel={() => setCheckoutTarget(null)}
-      />
+        onCancel={() => {
+          setCheckoutTarget(null);
+          setCheckoutFlagged(false);
+          setCheckoutNote("");
+        }}
+      >
+        <label className="flex items-start gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={checkoutFlagged}
+            onChange={(e) => setCheckoutFlagged(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>¿Esta persona tuvo un comportamiento violento/hostil?</span>
+        </label>
+        {checkoutFlagged && (
+          <textarea
+            value={checkoutNote}
+            onChange={(e) => setCheckoutNote(e.target.value)}
+            placeholder="Nota (opcional) — qué pasó"
+            rows={2}
+            className="input-field mt-2 h-auto w-full py-2 text-sm"
+          />
+        )}
+      </ConfirmDialog>
     </div>
   );
 }
