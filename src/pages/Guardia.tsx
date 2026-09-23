@@ -43,9 +43,10 @@ function FlaggedBadge() {
 // hacer scroll horizontal.
 export default function Guardia() {
   const { profile, signOut } = useAuth();
-  // office_id null = sin oficina asignada -- no se muestra bandera, mismo
-  // criterio que AppHeader.tsx.
-  const [officeCountry, setOfficeCountry] = useState<string | null>(null);
+  // office_id null = sin oficina asignada -- no se muestra nada, mismo
+  // criterio que AppHeader.tsx. Se trae el nombre completo (no solo el
+  // país) porque México tiene dos oficinas.
+  const [office, setOffice] = useState<{ name: string; country: string } | null>(null);
   const [visits, setVisits] = useState<InsideVisit[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -117,17 +118,17 @@ export default function Guardia() {
   useEffect(() => {
     const officeId = profile?.office_id;
     if (!officeId) {
-      setOfficeCountry(null);
+      setOffice(null);
       return;
     }
     let cancelled = false;
     supabase
       .from("offices")
-      .select("country")
+      .select("name, country")
       .eq("id", officeId)
       .single()
       .then(({ data }) => {
-        if (!cancelled) setOfficeCountry(data?.country ?? null);
+        if (!cancelled) setOffice(data ?? null);
       });
     return () => {
       cancelled = true;
@@ -168,14 +169,20 @@ export default function Guardia() {
               <h1 className="font-display text-base font-bold leading-tight">
                 PassHub <span className="text-white/50">{APP_VERSION}</span>
               </h1>
-              <p className="text-xs text-white/50">
-                Guardia{officeCountry && <span className="ml-1">{COUNTRY_FLAGS[officeCountry] ?? ""}</span>}
-              </p>
+              <p className="text-xs text-white/50">Guardia</p>
             </div>
           </div>
-          <button type="button" onClick={() => signOut()} className="text-xs text-white/50 hover:text-white/80">
-            Cerrar sesión
-          </button>
+          <div className="flex items-center gap-2">
+            {office && (
+              <span className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-white">
+                <span className="text-lg leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
+                {office.name}
+              </span>
+            )}
+            <button type="button" onClick={() => signOut()} className="text-xs text-white/50 hover:text-white/80">
+              Cerrar sesión
+            </button>
+          </div>
         </div>
       </header>
 

@@ -21,24 +21,26 @@ export function AppHeader() {
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? "Usuario";
   const roleLabel = roles.map((role) => ROLE_LABELS[role] ?? role).join(", ");
   // office_id null = sin oficina asignada (superadmin, o admin sin
-  // restricción) -- en ese caso no se muestra bandera, mismo criterio que
-  // se usa en RLS y en Users.tsx.
-  const [officeCountry, setOfficeCountry] = useState<string | null>(null);
+  // restricción) -- en ese caso no se muestra nada, mismo criterio que se
+  // usa en RLS y en Users.tsx. Se trae el nombre completo (no solo el país)
+  // porque México tiene dos oficinas -- con solo la bandera no se distingue
+  // CDMX de Monterrey.
+  const [office, setOffice] = useState<{ name: string; country: string } | null>(null);
 
   useEffect(() => {
     const officeId = profile?.office_id;
     if (!officeId) {
-      setOfficeCountry(null);
+      setOffice(null);
       return;
     }
     let cancelled = false;
     supabase
       .from("offices")
-      .select("country")
+      .select("name, country")
       .eq("id", officeId)
       .single()
       .then(({ data }) => {
-        if (!cancelled) setOfficeCountry(data?.country ?? null);
+        if (!cancelled) setOffice(data ?? null);
       });
     return () => {
       cancelled = true;
@@ -63,8 +65,13 @@ export function AppHeader() {
         </span>
         <div className="flex flex-wrap items-center gap-3">
           <ThemeToggle />
+          {office && (
+            <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
+              <span className="text-xl leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
+              {office.name}
+            </span>
+          )}
           <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
-            {officeCountry && <span className="mr-1">{COUNTRY_FLAGS[officeCountry] ?? ""}</span>}
             {firstName}
             {roleLabel && <span className="text-white/50"> · {roleLabel}</span>}
           </span>
