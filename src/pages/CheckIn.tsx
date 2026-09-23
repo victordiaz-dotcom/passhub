@@ -824,7 +824,7 @@ export default function CheckIn() {
                   {isMonterreyOffice && (
                     <div className="sm:col-span-2">
                       <label htmlFor="facility" className="mb-1 block text-sm font-medium text-ink-soft">
-                        Local 3 / Envia.com <span className="text-accent">*</span>
+                        Instalación que visitan <span className="text-accent">*</span>
                       </label>
                       <select
                         id="facility"
@@ -835,8 +835,8 @@ export default function CheckIn() {
                         className={invalidSelectClass}
                       >
                         <option value="" disabled></option>
-                        <option value="L3">L3</option>
-                        <option value="Instalaciones de Envia.com">Instalaciones de Envia.com</option>
+                        <option value="Local 3">Local 3</option>
+                        <option value="Envia.com">Envia.com</option>
                       </select>
                     </div>
                   )}
