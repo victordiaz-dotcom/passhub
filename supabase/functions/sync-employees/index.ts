@@ -121,28 +121,13 @@ Deno.serve(async (req) => {
 
   const { data: offices } = await adminClient.from("offices").select("id, name, country");
 
-  // México tiene dos oficinas (Cd. de México y Monterrey), así que ahí se
-  // distingue por "city"; Colombia y España son una sola oficina cada una,
-  // así que ahí basta con "country" — confirmado con el usuario. Si un
-  // colaborador de México no trae exactamente "CDMX" o "Monterrey" en
-  // city, o si el país no tiene ninguna oficina registrada, se deja
-  // office_id en null (no se adivina) y queda logueado para revisar.
-  function resolveOfficeId(country: unknown, city: unknown): string | null {
+  // Un solo office por país (México ahora solo tiene Monterrey, igual que
+  // Colombia/España tienen una sola oficina cada una) — ya no hace falta
+  // distinguir por "city". Si el país no tiene ninguna oficina registrada
+  // en la tabla offices, se deja office_id en null (no se adivina).
+  function resolveOfficeId(country: unknown): string | null {
     const countryCode = typeof country === "string" ? country.trim().toUpperCase() : "";
     if (!countryCode || !offices) return null;
-
-    if (countryCode === "MX") {
-      const cityNorm = typeof city === "string" ? normalize(city) : "";
-      if (cityNorm === normalize("Monterrey")) {
-        return offices.find((o) => normalize(o.name) === normalize("Monterrey"))?.id ?? null;
-      }
-      if (cityNorm === normalize("CDMX")) {
-        return offices.find((o) => normalize(o.name) === normalize("Cd. de México"))?.id ?? null;
-      }
-      return null;
-    }
-
-    // Un solo office por país fuera de México (Colombia, España, ...).
     return offices.find((o) => o.country === countryCode)?.id ?? null;
   }
 
@@ -290,19 +275,6 @@ Deno.serve(async (req) => {
   );
   console.log("Valores de 'organization' en el directorio de Slack:", Array.from(orgValues));
 
-  // Diagnóstico: colaboradores de México cuyo "city" no matcheó ni
-  // "CDMX" ni "Monterrey" — según lo confirmado, no debería pasar, pero
-  // si pasa quedan sin office_id (null) y se loguea para revisar en vez
-  // de asignarles una oficina por default.
-  const unmatchedMxCities = new Set(
-    validUsers
-      .filter((u) => u.country === "MX" && resolveOfficeId(u.country, u.city) === null)
-      .map((u) => (typeof u.city === "string" && u.city.trim() ? u.city.trim() : "(vacío)"))
-  );
-  if (unmatchedMxCities.size > 0) {
-    console.log("Ciudades de México sin oficina reconocida (quedan sin office_id):", Array.from(unmatchedMxCities));
-  }
-
   // Un batch de upsert usa la unión de llaves de todo el array: si una fila
   // sin correo resuelto llevara "email: null" mezclada con filas que sí
   // tienen correo, PostgREST igual generaría la columna para todas. Por eso
@@ -333,7 +305,7 @@ Deno.serve(async (req) => {
     const email = emailBySlackId.get(slackId);
     const company_id = resolveCompanyId(u.organization);
     const country = typeof u.country === "string" && u.country.trim() ? u.country.trim() : null;
-    const office_id = resolveOfficeId(u.country, u.city);
+    const office_id = resolveOfficeId(u.country);
 
     if (email) {
       rowsWithEmail.push({ slack_id: slackId, full_name, company_id, active: true, email, country, office_id });

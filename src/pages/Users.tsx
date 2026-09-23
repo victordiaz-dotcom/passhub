@@ -109,17 +109,18 @@ export default function Users() {
     }
   }, [officeLocked, callerOfficeId, offices, form.officeId]);
 
-  // País → oficina: México tiene dos oficinas, así que elegir el país no
-  // resuelve la oficina todavía (se limpia y se pide elegir CDMX/Monterrey
-  // aparte); Colombia/España son una sola oficina, así que elegir el país
-  // ya resuelve la oficina sin un paso extra.
+  // País → oficina: basado en cuántas oficinas tiene ese país, no en un
+  // país fijo -- si tiene más de una (ej. México con varias ciudades),
+  // elegir el país no resuelve la oficina todavía (se limpia y se pide
+  // elegir aparte); si solo tiene una, elegir el país ya la resuelve sin
+  // un paso extra.
   function handleCountryChange(country: string) {
-    if (country === "MX") {
+    const countryOffices = offices.filter((o) => o.country === country);
+    if (countryOffices.length > 1) {
       setForm({ ...form, country, officeId: "" });
       return;
     }
-    const office = offices.find((o) => o.country === country);
-    setForm({ ...form, country, officeId: office?.id ?? "" });
+    setForm({ ...form, country, officeId: countryOffices[0]?.id ?? "" });
   }
 
   function startEdit(account: Account) {
@@ -486,7 +487,7 @@ export default function Users() {
         </div>
       )}
 
-      {form.role !== "superadmin" && form.country === "MX" && (
+      {form.role !== "superadmin" && offices.filter((o) => o.country === form.country).length > 1 && (
         <div>
           <label htmlFor="office" className="mb-1 block text-sm font-medium text-ink-soft">
             Oficina
@@ -503,7 +504,7 @@ export default function Users() {
               Selecciona una oficina
             </option>
             {offices
-              .filter((o) => o.country === "MX")
+              .filter((o) => o.country === form.country)
               .map((office) => (
                 <option key={office.id} value={office.id}>
                   {office.name}
