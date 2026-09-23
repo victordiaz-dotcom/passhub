@@ -7,6 +7,7 @@ type ConfirmDialogProps = {
   variant?: "default" | "danger";
   onConfirm: () => void;
   onCancel: () => void;
+  children?: React.ReactNode;
 };
 
 export function ConfirmDialog({
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   variant = "default",
   onConfirm,
   onCancel,
+  children,
 }: ConfirmDialogProps) {
   if (!open) return null;
 
@@ -29,6 +31,7 @@ export function ConfirmDialog({
       <div className="modal max-w-sm" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-display text-lg font-bold text-ink">{title}</h2>
         {message && <p className="mt-2 text-sm text-ink-soft">{message}</p>}
+        {children && <div className="mt-4">{children}</div>}
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onCancel} className="btn-secondary">
             {cancelLabel}

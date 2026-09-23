@@ -9,6 +9,7 @@ import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { checkoutVisit } from "@/lib/checkout";
 import { copyToClipboard } from "@/lib/clipboard";
+import { findFlaggedVisitor, flagVisitor, type FlaggedVisitorMatch } from "@/lib/flaggedVisitors";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Pick<Tables<"employees">, "id" | "full_name">;
@@ -78,6 +79,12 @@ export default function CheckIn() {
   const [insideLoading, setInsideLoading] = useState(true);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutTarget, setCheckoutTarget] = useState<InsideVisit | null>(null);
+  // "Persona vetada": casilla opcional en el diálogo de confirmar salida,
+  // sin marcar por defecto -- no interrumpe el flujo normal de checkout,
+  // solo aplica cuando recepción la marca explícitamente.
+  const [checkoutFlagged, setCheckoutFlagged] = useState(false);
+  const [checkoutNote, setCheckoutNote] = useState("");
+  const [flaggedWarning, setFlaggedWarning] = useState<FlaggedVisitorMatch | null>(null);
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
@@ -245,12 +252,12 @@ export default function CheckIn() {
     loadInsideVisits();
   }, []);
 
-  async function handleCheckout(visitId: string) {
+  async function handleCheckout(visit: InsideVisit) {
     if (!session?.user) return;
 
     setCheckoutError(null);
 
-    const { error: checkoutErr } = await checkoutVisit(visitId, session.user.id);
+    const { error: checkoutErr } = await checkoutVisit(visit.id, session.user.id);
 
     if (checkoutErr) {
       console.error(checkoutErr);
@@ -258,8 +265,40 @@ export default function CheckIn() {
       return;
     }
 
+    // Solo si recepción marcó la casilla -- no bloquea ni afecta el
+    // checkout en sí, que ya se completó arriba. Un error aquí no se le
+    // muestra a recepción como si hubiera fallado la salida (sí falló,
+    // pero por separado): se deja en consola para no confundir, la
+    // salida ya quedó registrada de todas formas.
+    if (checkoutFlagged) {
+      const { error: flagError } = await flagVisitor({
+        fullName: visit.visitor_name,
+        note: checkoutNote,
+        visitId: visit.id,
+        flaggedBy: session.user.id,
+      });
+      if (flagError) console.error("No se pudo guardar la marca de comportamiento:", flagError);
+    }
+
+    setCheckoutFlagged(false);
+    setCheckoutNote("");
     loadInsideVisits();
   }
+
+  // Advertencia de "persona vetada": se busca con debounce mientras
+  // recepción escribe el nombre, comparando por nombre normalizado (no
+  // importa mayúsculas/espacios). Solo informativo -- nunca bloquea el
+  // registro, recepción decide si continúa.
+  useEffect(() => {
+    if (!visitorName.trim()) {
+      setFlaggedWarning(null);
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      findFlaggedVisitor(visitorName).then(setFlaggedWarning);
+    }, 400);
+    return () => window.clearTimeout(timeout);
+  }, [visitorName]);
 
   useEffect(() => {
     if (!scannerOpen) return;
@@ -763,6 +802,12 @@ export default function CheckIn() {
                       onChange={(e) => setVisitorName(e.target.value)}
                       className={inputClass}
                     />
+                    {flaggedWarning && (
+                      <p className="mt-1.5 rounded-md border border-danger bg-danger/10 px-2 py-1.5 text-xs font-medium text-danger">
+                        ⚠️ Esta persona fue marcada antes por comportamiento violento/hostil
+                        {flaggedWarning.note ? `: "${flaggedWarning.note}"` : "."}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -982,11 +1027,34 @@ export default function CheckIn() {
         title="¿Registrar la salida de este visitante?"
         message={checkoutTarget ? `Se registrará la salida de ${checkoutTarget.visitor_name}.` : undefined}
         onConfirm={() => {
-          if (checkoutTarget) handleCheckout(checkoutTarget.id);
+          if (checkoutTarget) handleCheckout(checkoutTarget);
           setCheckoutTarget(null);
         }}
-        onCancel={() => setCheckoutTarget(null)}
-      />
+        onCancel={() => {
+          setCheckoutTarget(null);
+          setCheckoutFlagged(false);
+          setCheckoutNote("");
+        }}
+      >
+        <label className="flex items-start gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={checkoutFlagged}
+            onChange={(e) => setCheckoutFlagged(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>¿Esta persona tuvo un comportamiento violento/hostil?</span>
+        </label>
+        {checkoutFlagged && (
+          <textarea
+            value={checkoutNote}
+            onChange={(e) => setCheckoutNote(e.target.value)}
+            placeholder="Nota (opcional) — qué pasó"
+            rows={2}
+            className="input-field mt-2 h-auto w-full py-2 text-sm"
+          />
+        )}
+      </ConfirmDialog>
     </div>
   );
 }

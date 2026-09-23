@@ -203,6 +203,51 @@ export type Database = {
           },
         ]
       }
+      flagged_visitors: {
+        Row: {
+          created_at: string
+          flagged_by: string
+          full_name: string
+          id: string
+          normalized_name: string | null
+          note: string | null
+          visit_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          flagged_by: string
+          full_name: string
+          id?: string
+          normalized_name?: string | null
+          note?: string | null
+          visit_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          flagged_by?: string
+          full_name?: string
+          id?: string
+          normalized_name?: string | null
+          note?: string | null
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flagged_visitors_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flagged_visitors_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offices: {
         Row: {
           active: boolean
