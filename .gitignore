@@ -6,6 +6,7 @@ dist
 .DS_Store
 backups/
 *.tsbuildinfo
+.playwright-mcp/
 .claude/
 .mcp.json
 .codex/

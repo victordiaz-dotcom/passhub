@@ -35,6 +35,19 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    // Antes de saber si getSession() va a devolver sesión o no, "session"
+    // vale null igual que "de plano no hay sesión" -- son dos cosas
+    // distintas. Sin este guard, este efecto corría en el primer render con
+    // session=null (todavía no resuelto) y dejaba rolesLoading en false de
+    // una vez; cuando la sesión sí llegaba un instante después, sessionLoading
+    // pasaba a false en el mismo tick (misma actualización por lotes), así
+    // que por un render "loading" (sessionLoading || rolesLoading) daba
+    // false con roles todavía en []. ProtectedRoute alcanzaba a leer eso y
+    // mandaba a "/" antes de que los roles reales llegaran -- por eso
+    // refrescar en /users (o cualquier ruta con allowedRoles) regresaba a
+    // Registrar visita.
+    if (sessionLoading) return;
+
     if (!session?.user) {
       setProfile(null);
       setRoles([]);
@@ -52,7 +65,7 @@ export function useAuth() {
       setRoles((rolesResult.data ?? []).map((r) => r.role));
       setRolesLoading(false);
     });
-  }, [session?.user?.id]);
+  }, [session?.user?.id, sessionLoading]);
 
   const signOut = () => supabase.auth.signOut();
 

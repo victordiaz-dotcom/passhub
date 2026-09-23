@@ -356,6 +356,236 @@ export default function Users() {
     loadAccounts();
   }
 
+  // Campos compartidos entre "Nueva cuenta" (inline, plegable) y "Editar
+  // cuenta" (modal aislado, ver más abajo) -- un solo lugar para no
+  // mantener dos copias del formulario.
+  const formFields = (
+    <>
+      <div>
+        <label htmlFor="fullName" className="mb-1 block text-sm font-medium text-ink-soft">
+          Nombre completo
+        </label>
+        <input
+          id="fullName"
+          type="text"
+          required
+          value={form.fullName}
+          onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+          className="input-field h-auto py-2"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink-soft">
+          Correo
+        </label>
+        <input
+          id="email"
+          type="email"
+          required
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          className="input-field h-auto py-2"
+        />
+        {isEditing && form.email !== editingOriginalEmail && (
+          <p className="mt-1 text-xs text-ink-soft">
+            Se actualizará el correo de acceso de esta cuenta al guardar.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="username" className="mb-1 block text-sm font-medium text-ink-soft">
+          Usuario
+        </label>
+        <input
+          id="username"
+          type="text"
+          required
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().trim() })}
+          className="input-field h-auto py-2"
+        />
+        <p className="mt-1 text-xs text-ink-soft">Con esto (o el correo) inicia sesión.</p>
+      </div>
+
+      <div>
+        <label htmlFor="company" className="mb-1 block text-sm font-medium text-ink-soft">
+          Empresa
+        </label>
+        <select
+          id="company"
+          required
+          value={form.companyId}
+          onChange={(e) => setForm({ ...form, companyId: e.target.value })}
+          className="input-field h-auto py-2"
+        >
+          <option value="" disabled>
+            Selecciona una empresa
+          </option>
+          {companies.map((company) => (
+            <option key={company.id} value={company.id}>
+              {company.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="role" className="mb-1 block text-sm font-medium text-ink-soft">
+          Rol
+        </label>
+        <select
+          id="role"
+          required
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
+          className="input-field h-auto py-2"
+        >
+          <option value="recepcion">Recepción</option>
+          <option value="guardia">Guardia</option>
+          {isSuperadmin && (
+            <>
+              <option value="admin">Admin</option>
+              <option value="superadmin">Super Admin</option>
+            </>
+          )}
+        </select>
+        {!isSuperadmin && (
+          <p className="mt-1 text-xs text-ink-soft">
+            Solo un super admin puede crear o editar cuentas de admin/super admin.
+          </p>
+        )}
+      </div>
+
+      {form.role !== "superadmin" && (
+        <div>
+          <label htmlFor="country" className="mb-1 block text-sm font-medium text-ink-soft">
+            País
+          </label>
+          <select
+            id="country"
+            required
+            value={form.country}
+            disabled={officeLocked}
+            onChange={(e) => handleCountryChange(e.target.value)}
+            className="input-field h-auto py-2 disabled:opacity-60"
+          >
+            <option value="" disabled>
+              Selecciona un país
+            </option>
+            {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
+              <option key={code} value={code}>
+                {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
+              </option>
+            ))}
+          </select>
+          {officeLocked && (
+            <p className="mt-1 text-xs text-ink-soft">Solo puedes crear/editar cuentas de tu propia oficina.</p>
+          )}
+        </div>
+      )}
+
+      {form.role !== "superadmin" && form.country === "MX" && (
+        <div>
+          <label htmlFor="office" className="mb-1 block text-sm font-medium text-ink-soft">
+            Oficina
+          </label>
+          <select
+            id="office"
+            required
+            value={form.officeId}
+            disabled={officeLocked}
+            onChange={(e) => setForm({ ...form, officeId: e.target.value })}
+            className="input-field h-auto py-2 disabled:opacity-60"
+          >
+            <option value="" disabled>
+              Selecciona una oficina
+            </option>
+            {offices
+              .filter((o) => o.country === "MX")
+              .map((office) => (
+                <option key={office.id} value={office.id}>
+                  {office.name}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
+      {!isEditing && (
+        <div className="sm:col-span-2 border-t border-line pt-4">
+          <label className="mb-1 block text-sm font-medium text-ink-soft">Contraseña</label>
+          <div className="flex gap-4 text-sm text-ink">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="passwordMode"
+                checked={form.passwordMode === "auto"}
+                onChange={() => setForm({ ...form, passwordMode: "auto", customPassword: "" })}
+              />
+              Generar automáticamente
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="passwordMode"
+                checked={form.passwordMode === "custom"}
+                onChange={() => setForm({ ...form, passwordMode: "custom" })}
+              />
+              Escribir manualmente
+            </label>
+          </div>
+          {form.passwordMode === "custom" && (
+            <input
+              type="text"
+              required
+              minLength={8}
+              placeholder="Mínimo 8 caracteres"
+              value={form.customPassword}
+              onChange={(e) => setForm({ ...form, customPassword: e.target.value })}
+              className="input-field mt-2 h-auto py-2"
+            />
+          )}
+          <label className="mt-3 flex items-center gap-1.5 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={form.requireChange}
+              onChange={(e) => setForm({ ...form, requireChange: e.target.checked })}
+            />
+            Pedirle que la cambie al iniciar sesión por primera vez
+          </label>
+        </div>
+      )}
+
+      <div className="flex items-end gap-2 sm:col-span-2">
+        <button type="submit" disabled={saving} className="btn-primary">
+          {saving ? "Guardando..." : isEditing ? "Guardar cambios" : "Crear cuenta"}
+        </button>
+        {isEditing && (
+          <button type="button" onClick={cancelEdit} className="btn-secondary">
+            Cancelar
+          </button>
+        )}
+        {!isEditing && (
+          <button
+            type="button"
+            onClick={() => {
+              setForm(emptyForm);
+              setError(null);
+              setShowCreateForm(false);
+            }}
+            className="btn-secondary"
+          >
+            Cancelar
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
+    </>
+  );
+
   return (
     <div className="mx-auto max-w-6xl p-6">
       <h1 className="mb-6 font-display text-xl font-bold text-ink">Cuentas</h1>
@@ -393,10 +623,23 @@ export default function Users() {
         </div>
       )}
 
-      <div className="card mb-6">
-        {isEditing ? (
-          <h2 className="mb-4 font-display text-base font-bold text-ink">Editar cuenta</h2>
-        ) : (
+      {isEditing ? (
+        // Editar cuenta como ventana aislada encima del resto (no un layout
+        // nuevo/otra pestaña): mismo overlay + tarjeta blanca que ya usa
+        // ConfirmDialog, con los colores/estilo de siempre.
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-6"
+          onClick={cancelEdit}
+        >
+          <div className="modal my-8 w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 font-display text-base font-bold text-ink">Editar cuenta</h2>
+            <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+              {formFields}
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div className="card mb-6">
           <button
             type="button"
             onClick={() => setShowCreateForm((s) => !s)}
@@ -407,235 +650,14 @@ export default function Users() {
               {showCreateForm ? "Ocultar ▲" : "+ Crear cuenta ▼"}
             </span>
           </button>
-        )}
 
-        {(isEditing || showCreateForm) && (
-        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="fullName" className="mb-1 block text-sm font-medium text-ink-soft">
-              Nombre completo
-            </label>
-            <input
-              id="fullName"
-              type="text"
-              required
-              value={form.fullName}
-              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-              className="input-field h-auto py-2"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink-soft">
-              Correo
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="input-field h-auto py-2"
-            />
-            {isEditing && form.email !== editingOriginalEmail && (
-              <p className="mt-1 text-xs text-ink-soft">
-                Se actualizará el correo de acceso de esta cuenta al guardar.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="username" className="mb-1 block text-sm font-medium text-ink-soft">
-              Usuario
-            </label>
-            <input
-              id="username"
-              type="text"
-              required
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().trim() })}
-              className="input-field h-auto py-2"
-            />
-            <p className="mt-1 text-xs text-ink-soft">Con esto (o el correo) inicia sesión.</p>
-          </div>
-
-          <div>
-            <label htmlFor="company" className="mb-1 block text-sm font-medium text-ink-soft">
-              Empresa
-            </label>
-            <select
-              id="company"
-              required
-              value={form.companyId}
-              onChange={(e) => setForm({ ...form, companyId: e.target.value })}
-              className="input-field h-auto py-2"
-            >
-              <option value="" disabled>
-                Selecciona una empresa
-              </option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="role" className="mb-1 block text-sm font-medium text-ink-soft">
-              Rol
-            </label>
-            <select
-              id="role"
-              required
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="input-field h-auto py-2"
-            >
-              <option value="recepcion">Recepción</option>
-              <option value="guardia">Guardia</option>
-              {isSuperadmin && (
-                <>
-                  <option value="admin">Admin</option>
-                  <option value="superadmin">Super Admin</option>
-                </>
-              )}
-            </select>
-            {!isSuperadmin && (
-              <p className="mt-1 text-xs text-ink-soft">
-                Solo un super admin puede crear o editar cuentas de admin/super admin.
-              </p>
-            )}
-          </div>
-
-          {form.role !== "superadmin" && (
-            <div>
-              <label htmlFor="country" className="mb-1 block text-sm font-medium text-ink-soft">
-                País
-              </label>
-              <select
-                id="country"
-                required
-                value={form.country}
-                disabled={officeLocked}
-                onChange={(e) => handleCountryChange(e.target.value)}
-                className="input-field h-auto py-2 disabled:opacity-60"
-              >
-                <option value="" disabled>
-                  Selecciona un país
-                </option>
-                {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
-                  <option key={code} value={code}>
-                    {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
-                  </option>
-                ))}
-              </select>
-              {officeLocked && (
-                <p className="mt-1 text-xs text-ink-soft">Solo puedes crear/editar cuentas de tu propia oficina.</p>
-              )}
-            </div>
+          {showCreateForm && (
+            <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+              {formFields}
+            </form>
           )}
-
-          {form.role !== "superadmin" && form.country === "MX" && (
-            <div>
-              <label htmlFor="office" className="mb-1 block text-sm font-medium text-ink-soft">
-                Oficina
-              </label>
-              <select
-                id="office"
-                required
-                value={form.officeId}
-                disabled={officeLocked}
-                onChange={(e) => setForm({ ...form, officeId: e.target.value })}
-                className="input-field h-auto py-2 disabled:opacity-60"
-              >
-                <option value="" disabled>
-                  Selecciona una oficina
-                </option>
-                {offices
-                  .filter((o) => o.country === "MX")
-                  .map((office) => (
-                    <option key={office.id} value={office.id}>
-                      {office.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-          )}
-
-          {!isEditing && (
-            <div className="sm:col-span-2 border-t border-line pt-4">
-              <label className="mb-1 block text-sm font-medium text-ink-soft">Contraseña</label>
-              <div className="flex gap-4 text-sm text-ink">
-                <label className="flex items-center gap-1.5">
-                  <input
-                    type="radio"
-                    name="passwordMode"
-                    checked={form.passwordMode === "auto"}
-                    onChange={() => setForm({ ...form, passwordMode: "auto", customPassword: "" })}
-                  />
-                  Generar automáticamente
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <input
-                    type="radio"
-                    name="passwordMode"
-                    checked={form.passwordMode === "custom"}
-                    onChange={() => setForm({ ...form, passwordMode: "custom" })}
-                  />
-                  Escribir manualmente
-                </label>
-              </div>
-              {form.passwordMode === "custom" && (
-                <input
-                  type="text"
-                  required
-                  minLength={8}
-                  placeholder="Mínimo 8 caracteres"
-                  value={form.customPassword}
-                  onChange={(e) => setForm({ ...form, customPassword: e.target.value })}
-                  className="input-field mt-2 h-auto py-2"
-                />
-              )}
-              <label className="mt-3 flex items-center gap-1.5 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={form.requireChange}
-                  onChange={(e) => setForm({ ...form, requireChange: e.target.checked })}
-                />
-                Pedirle que la cambie al iniciar sesión por primera vez
-              </label>
-            </div>
-          )}
-
-          <div className="flex items-end gap-2 sm:col-span-2">
-            <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? "Guardando..." : isEditing ? "Guardar cambios" : "Crear cuenta"}
-            </button>
-            {isEditing && (
-              <button type="button" onClick={cancelEdit} className="btn-secondary">
-                Cancelar
-              </button>
-            )}
-            {!isEditing && (
-              <button
-                type="button"
-                onClick={() => {
-                  setForm(emptyForm);
-                  setError(null);
-                  setShowCreateForm(false);
-                }}
-                className="btn-secondary"
-              >
-                Cancelar
-              </button>
-            )}
-          </div>
-
-          {error && <p className="text-sm text-danger sm:col-span-2">{error}</p>}
-        </form>
-        )}
-      </div>
+        </div>
+      )}
 
       <h2 className="mb-4 font-display text-base font-bold text-ink">Cuentas registradas</h2>
 
