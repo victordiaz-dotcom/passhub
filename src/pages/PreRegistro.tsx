@@ -117,11 +117,13 @@ export default function PreRegistro() {
   // empresa en particular.
   const companyDivisions = divisions.filter((division) => division.company_id === form.companyId);
   const hasDivisions = companyDivisions.length > 0;
-  // "¿A qué instalación vas?" solo aparece si la oficina elegida tiene
-  // instalaciones registradas (hoy Madrid: Envia.com/Fulfillment; Monterrey
-  // también tiene, así que igual aparecería ahí -- no está hardcodeado a
-  // un país en particular, sale de office_facilities).
-  const hasOfficeFacilities = officeFacilities.length > 0;
+  // "¿A qué instalación vas?" en el pre-registro público solo aplica a
+  // España (Envia.com/Fulfillment son direcciones realmente distintas).
+  // Confirmado explícitamente: en México NO debe salir aquí, aunque
+  // Monterrey también tenga instalaciones registradas para uso interno de
+  // recepción (CheckIn.tsx) -- ese campo es aparte y no se toca.
+  const selectedOfficeCountry = offices.find((office) => office.id === officeId)?.country;
+  const hasOfficeFacilities = selectedOfficeCountry === "ES" && officeFacilities.length > 0;
 
   // Las 5 cargas van juntas y SÍ revisan el error de cada una. Antes cada
   // una hacía `data?.x ?? []` ignorando el error: si el backend respondía

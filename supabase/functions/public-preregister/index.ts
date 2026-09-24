@@ -418,10 +418,11 @@ Deno.serve(async (req) => {
   // pre-registros viejos tampoco la tienen y deben seguir funcionando.
   const officeIdRaw = body.officeId;
   let officeId: string | null = null;
+  let officeCountry: string | null = null;
   if (typeof officeIdRaw === "string" && officeIdRaw) {
     const { data: office } = await adminClient
       .from("offices")
-      .select("id")
+      .select("id, country")
       .eq("id", officeIdRaw)
       .eq("active", true)
       .maybeSingle();
@@ -430,14 +431,17 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "La oficina no existe." }, 400);
     }
     officeId = office.id;
+    officeCountry = office.country;
   }
 
   // Instalación dentro de la oficina (ej. Madrid: Envia.com/Fulfillment).
-  // Solo se exige si esa oficina tiene alguna registrada -- Monterrey por
-  // ahora también tiene (Local 3/Envia.com), pero una oficina sin ninguna
-  // simplemente no pregunta nada, igual que "División" con las empresas.
+  // Confirmado explícitamente: en el pre-registro público esto SOLO aplica
+  // a España (son direcciones realmente distintas) -- Monterrey también
+  // tiene instalaciones registradas (Local 3/Envia.com), pero esas son
+  // para uso interno de recepción al registrar la entrada (CheckIn.tsx),
+  // no para esta pantalla.
   let facility: string | null = null;
-  if (officeId) {
+  if (officeId && officeCountry === "ES") {
     const { data: officeFacilityRows } = await adminClient
       .from("office_facilities")
       .select("name")
