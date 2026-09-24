@@ -251,24 +251,30 @@ export type Database = {
       office_facilities: {
         Row: {
           active: boolean
+          address: string | null
           created_at: string
           id: string
           name: string
           office_id: string
+          phone: string | null
         }
         Insert: {
           active?: boolean
+          address?: string | null
           created_at?: string
           id?: string
           name: string
           office_id: string
+          phone?: string | null
         }
         Update: {
           active?: boolean
+          address?: string | null
           created_at?: string
           id?: string
           name?: string
           office_id?: string
+          phone?: string | null
         }
         Relationships: [
           {
