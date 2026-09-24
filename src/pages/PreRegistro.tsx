@@ -127,15 +127,13 @@ export default function PreRegistro() {
       const call = (action: string) =>
         supabase.functions.invoke("public-preregister", { body: { action } });
 
-      const [companiesRes, divisionsRes, visitTypesRes, visitorCompaniesRes, fieldsRes, officesRes] =
-        await Promise.all([
-          call("companies"),
-          call("divisions"),
-          call("visitTypes"),
-          call("visitorCompanies"),
-          call("fieldConfig"),
-          call("offices"),
-        ]);
+      const [companiesRes, divisionsRes, visitTypesRes, fieldsRes, officesRes] = await Promise.all([
+        call("companies"),
+        call("divisions"),
+        call("visitTypes"),
+        call("fieldConfig"),
+        call("offices"),
+      ]);
 
       if (cancelled) return;
 
@@ -146,8 +144,7 @@ export default function PreRegistro() {
       // nueva del backend, y si el front se desplegara antes que la función
       // de borde, esa llamada respondería "Acción inválida" y tumbaría toda
       // la página pública. Sin oficinas simplemente no se muestra el
-      // selector de recepción y el pre-registro sigue funcionando como
-      // antes. Igual con "visitorCompanies", que son solo sugerencias.
+      // selector de recepción y el pre-registro sigue funcionando como antes.
       const failed = [companiesRes, divisionsRes, visitTypesRes, fieldsRes].some(
         (res) => res.error || res.data?.error || !res.data
       );
@@ -161,9 +158,13 @@ export default function PreRegistro() {
       setCompanies(companiesRes.data.companies ?? []);
       setDivisions(divisionsRes.data.divisions ?? []);
       setVisitTypes(visitTypesRes.data.visitTypes ?? []);
-      setVisitorCompanySuggestions(
-        mergeVisitorCompanySuggestions(visitorCompaniesRes.data?.visitorCompanies ?? [])
-      );
+      // Solo la lista común (paqueterías, proveedores frecuentes). Antes se
+      // pedían al backend las empresas visitantes REALES del historial, y
+      // esa acción era pública sin sesión: cualquiera en internet podía
+      // listar a todo proveedor, cliente o candidato que haya pisado la
+      // recepción. Recepción sí conserva las sugerencias aprendidas, porque
+      // CheckIn.tsx las arma de su propia consulta ya autenticada.
+      setVisitorCompanySuggestions(mergeVisitorCompanySuggestions([]));
       setFields(fieldsRes.data.fields ?? []);
 
       // Un solo link para todas las oficinas: aquí se resuelve cuál toca.

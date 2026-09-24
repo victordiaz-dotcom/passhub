@@ -127,8 +127,8 @@ Deno.serve(async (req) => {
 
   const action = body.action;
 
-  // Cada carga de la página dispara 5 lookups de golpe (companies,
-  // divisions, visitTypes, visitorCompanies, fieldConfig) -- con un solo
+  // Cada carga de la página dispara varios lookups de golpe (companies,
+  // divisions, visitTypes, fieldConfig, offices) -- con un solo
   // cupo compartido de 30/5min (como antes), bastaban 6 recargas de página
   // para que un visitante real (o alguien probando) se quedara bloqueado
   // sin haber llegado siquiera a enviar el formulario. Se separan en 3
@@ -140,7 +140,6 @@ Deno.serve(async (req) => {
     "companies",
     "divisions",
     "visitTypes",
-    "visitorCompanies",
     "fieldConfig",
     "offices",
   ]);
@@ -213,31 +212,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ fields: data ?? [] });
   }
 
-  if (action === "visitorCompanies") {
-    // Nombres de empresas de visitantes ya usados en visitas reales,
-    // ordenados por frecuencia — el front los combina con una lista de
-    // sugerencias comunes para autocompletar "Empresa del visitante".
-    const { data } = await adminClient
-      .from("visits")
-      .select("visitor_company")
-      .not("visitor_company", "is", null);
-
-    const counts = new Map<string, { label: string; count: number }>();
-    for (const row of data ?? []) {
-      const name = row.visitor_company?.trim();
-      if (!name) continue;
-      const key = name.toLowerCase();
-      const existing = counts.get(key);
-      if (existing) existing.count += 1;
-      else counts.set(key, { label: name, count: 1 });
-    }
-
-    const visitorCompanies = Array.from(counts.values())
-      .sort((a, b) => b.count - a.count)
-      .map((entry) => entry.label);
-
-    return jsonResponse({ visitorCompanies });
-  }
+  // La acción "visitorCompanies" se eliminó: devolvía, sin ninguna sesión,
+  // la lista de TODAS las empresas visitantes del historial (proveedores,
+  // clientes, candidatos) a quien la pidiera desde internet. El formulario
+  // público ahora autocompleta solo con la lista común de paqueterías; las
+  // sugerencias aprendidas del historial siguen existiendo del lado de
+  // recepción, que ya consulta visits con su propia sesión.
 
   // Lookup público de un pre-registro por su access_token (uuid no
   // adivinable, distinto del id interno — ver migración 0041: así el id

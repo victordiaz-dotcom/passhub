@@ -39,13 +39,17 @@ function getClientIp(req: Request): string {
 // pública sin JWT. Ventana fija por (bucket, identifier) sobre
 // public.edge_rate_limits — se autolimpia en cada chequeo, así que no
 // necesita ningún cron aparte.
-async function checkRateLimit(
+// Se separa "contar" de "registrar" porque aquí solo deben contar los
+// intentos FALLIDOS. Cuando el mismo helper registraba cada llamada, una
+// recepción entera detrás de una sola IP pública (que es justo el caso: un
+// mostrador compartido) se auto-bloqueaba después de 5 ingresos CORRECTOS en
+// 15 minutos, sin que nadie estuviera atacando nada.
+async function countFailures(
   adminClient: ReturnType<typeof createClient>,
   bucket: string,
   identifier: string,
-  limit: number,
   windowMinutes: number
-): Promise<boolean> {
+): Promise<number> {
   const windowStart = new Date(Date.now() - windowMinutes * 60_000).toISOString();
   await adminClient
     .from("edge_rate_limits")
@@ -60,10 +64,15 @@ async function checkRateLimit(
     .eq("bucket", bucket)
     .eq("identifier", identifier);
 
-  if ((count ?? 0) >= limit) return false;
+  return count ?? 0;
+}
 
+async function recordFailure(
+  adminClient: ReturnType<typeof createClient>,
+  bucket: string,
+  identifier: string
+) {
   await adminClient.from("edge_rate_limits").insert({ bucket, identifier });
-  return true;
 }
 
 // Sin JWT a propósito: se llama ANTES de iniciar sesión, para autenticar por
@@ -104,11 +113,13 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // 5 intentos / 15 min por IP: cubre tanto fuerza bruta de contraseña como
-  // el intento de volver a enumerar usernames a punta de volumen.
-  const allowed = await checkRateLimit(adminClient, "resolve-username", getClientIp(req), 5, 15);
-  if (!allowed) {
-    return jsonResponse({ error: "Demasiados intentos. Espera unos minutos." }, 429);
+  const TOO_MANY = { error: "Demasiados intentos. Espera unos minutos." };
+  const ip = getClientIp(req);
+
+  // Cupo por IP: 10 FALLOS / 15 min. Se revisa antes de leer el cuerpo para
+  // que un flood de basura no llegue más lejos.
+  if ((await countFailures(adminClient, "resolve-username-ip", ip, 15)) >= 10) {
+    return jsonResponse(TOO_MANY, 429);
   }
 
   let body: { username?: string; password?: string };
@@ -128,6 +139,22 @@ Deno.serve(async (req) => {
     return jsonResponse(GENERIC_ERROR, 400);
   }
 
+  // Cupo por USUARIO: 10 fallos / 15 min sobre esa cuenta, sin importar de
+  // cuántas IPs vengan. El cupo por IP solo no alcanza contra fuerza bruta
+  // distribuida (quien rota IPs tenía intentos ilimitados contra una cuenta
+  // conocida), y aquí una respuesta correcta devuelve la sesión completa.
+  async function failAttempt() {
+    await Promise.all([
+      recordFailure(adminClient, "resolve-username-ip", ip),
+      recordFailure(adminClient, "resolve-username-user", username!),
+    ]);
+    return jsonResponse(GENERIC_ERROR, 400);
+  }
+
+  if ((await countFailures(adminClient, "resolve-username-user", username, 15)) >= 10) {
+    return jsonResponse(TOO_MANY, 429);
+  }
+
   const { data: profile } = await adminClient
     .from("profiles")
     .select("email")
@@ -136,7 +163,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (!profile) {
-    return jsonResponse(GENERIC_ERROR, 400);
+    return await failAttempt();
   }
 
   // Verificación real de la contraseña con la clave anon — el mismo camino
@@ -149,8 +176,10 @@ Deno.serve(async (req) => {
   });
 
   if (signInError || !signInData.session) {
-    return jsonResponse(GENERIC_ERROR, 400);
+    return await failAttempt();
   }
 
+  // Un ingreso correcto NO consume cupo: si lo consumiera, un mostrador de
+  // recepción compartiendo una IP se bloquearía solo a las pocas entradas.
   return jsonResponse({ session: signInData.session });
 });
