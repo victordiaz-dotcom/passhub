@@ -48,21 +48,39 @@ function getClientIp(req: Request): string {
   return req.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
-// País del visitante según su IP real, puesto por Cloudflare (mismo borde
-// que ya pone cf-connecting-ip) -- nadie de afuera puede falsificarlo. Se
-// usa para preseleccionar la oficina en el link único de pre-registro
-// (México/España) en vez de la zona horaria del DISPOSITIVO: esa se puede
-// leer con Intl.DateTimeFormat() en el navegador, pero una VPN cambia la
+// País del visitante según su IP real -- se usa para preseleccionar la
+// oficina en el link único de pre-registro (México/España) en vez de la
+// zona horaria del DISPOSITIVO: esa se puede leer con
+// Intl.DateTimeFormat() en el navegador, pero una VPN cambia la
 // IP/ubicación real, NO la zona horaria del sistema operativo -- así que
 // por horario, alguien conectado por VPN seguía viendo el país equivocado.
-// Por IP sí reacciona a la VPN, que es justo el caso de uso real (alguien
-// entrando desde otro país temporalmente). "XX" es el valor que manda
-// Cloudflare cuando no pudo resolver el país (IP privada/desconocida) --
-// se trata igual que "no se pudo detectar".
-function getClientCountry(req: Request): string | null {
-  const country = req.headers.get("cf-ipcountry");
-  if (!country || country === "XX" || country === "T1") return null;
-  return country.toUpperCase();
+//
+// Primero se intenta el header que pondría Cloudflare si algún día queda
+// delante de esta función (gratis, sin llamada externa); pero se comprobó
+// en vivo -- con una VPN real y también en pruebas automatizadas -- que
+// hoy ese header simplemente NO llega (Supabase no lo está pasando desde
+// donde sea que corran las Edge Functions). Por eso hay un segundo paso
+// real: resolver la IP contra ipinfo.io (gratis hasta 50k consultas/mes,
+// sin api key, HTTPS). Fail-open a null si cualquiera de los dos falla --
+// nunca se bloquea el pre-registro por esto, solo se le pregunta al
+// visitante en vez de adivinar.
+async function getClientCountry(req: Request): Promise<string | null> {
+  const headerCountry = req.headers.get("cf-ipcountry");
+  if (headerCountry && headerCountry !== "XX" && headerCountry !== "T1") {
+    return headerCountry.toUpperCase();
+  }
+
+  const ip = getClientIp(req);
+  if (!ip || ip === "unknown") return null;
+
+  try {
+    const res = await fetch(`https://ipinfo.io/${ip}/country`);
+    if (!res.ok) return null;
+    const text = (await res.text()).trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(text) ? text : null;
+  } catch {
+    return null;
+  }
 }
 
 // Sin tabla de rate limiting compartida entre funciones (cada Edge Function
@@ -199,7 +217,7 @@ Deno.serve(async (req) => {
       .select("id, name, country")
       .eq("active", true)
       .order("name");
-    return jsonResponse({ offices: data ?? [], detectedCountry: getClientCountry(req) });
+    return jsonResponse({ offices: data ?? [], detectedCountry: await getClientCountry(req) });
   }
 
   // Instalaciones de una oficina puntual (ej. Madrid: Envia.com,

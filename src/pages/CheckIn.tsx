@@ -209,24 +209,62 @@ export default function CheckIn() {
       return;
     }
 
-    // office_id null = superadmin, o un admin sin oficina asignada -- ve
-    // todo, así que aquí "todo" incluye las instalaciones de TODAS las
-    // oficinas. Se le agrega el nombre de la oficina a la etiqueta porque
-    // dos oficinas distintas pueden tener una instalación con el mismo
-    // nombre (ej. "Envia.com" existe en Monterrey Y en Madrid) -- sin la
-    // oficina en la etiqueta no se podría saber a cuál se refería lo
-    // guardado.
-    supabase
-      .from("office_facilities")
-      .select("id, name, offices(name)")
-      .eq("active", true)
-      .order("name")
-      .then(({ data }) => {
-        const rows = (data as Array<{ id: string; name: string; offices: { name: string } | null }> | null) ?? [];
-        setOfficeFacilities(
-          rows.map((f) => ({ id: f.id, name: f.name, label: `${f.name} (${f.offices?.name ?? "?"})` }))
-        );
-      });
+    // office_id null = superadmin, o un admin sin oficina asignada -- no
+    // hay una oficina propia que filtre esto, así que se detecta el país
+    // por IP (mismo mecanismo que el pre-registro público, vía
+    // getClientCountry() en public-preregister) y se muestran solo las
+    // instalaciones de las oficinas de ESE país -- no las de todos los
+    // países mezcladas: si estás en México debe salir Envia.com/Local 3,
+    // si estás en España debe salir Envia.com/Fulfillment, nunca las 4
+    // juntas.
+    let cancelled = false;
+    supabase.functions.invoke("public-preregister", { body: { action: "offices" } }).then(async ({ data }) => {
+      if (cancelled) return;
+      const detectedCountry = data?.detectedCountry as string | null | undefined;
+      if (!detectedCountry) {
+        setOfficeFacilities([]);
+        return;
+      }
+
+      const { data: countryOffices } = await supabase
+        .from("offices")
+        .select("id")
+        .eq("country", detectedCountry)
+        .eq("active", true);
+      const officeIds = (countryOffices ?? []).map((o) => o.id);
+      if (cancelled || officeIds.length === 0) {
+        if (!cancelled) setOfficeFacilities([]);
+        return;
+      }
+
+      const { data: facilityRows } = await supabase
+        .from("office_facilities")
+        .select("id, name, office_id, offices(name)")
+        .in("office_id", officeIds)
+        .eq("active", true)
+        .order("name");
+      if (cancelled) return;
+
+      const rows =
+        (facilityRows as Array<{ id: string; name: string; office_id: string; offices: { name: string } | null }> | null) ??
+        [];
+      // Un país con más de una oficina (no es el caso hoy) podría repetir
+      // nombre de instalación entre ellas -- ahí sí se agrega el nombre de
+      // la oficina para desambiguar; con una sola oficina en el país
+      // (el caso normal) queda igual que para una cuenta con oficina
+      // asignada.
+      const distinctOffices = new Set(rows.map((r) => r.office_id));
+      setOfficeFacilities(
+        rows.map((f) => ({
+          id: f.id,
+          name: f.name,
+          label: distinctOffices.size > 1 ? `${f.name} (${f.offices?.name ?? "?"})` : f.name,
+        }))
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [profile?.office_id]);
 
   useEffect(() => {
