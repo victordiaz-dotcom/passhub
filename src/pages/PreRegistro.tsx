@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { detectCountryFromDevice } from "@/lib/detectCountry";
+import { COUNTRY_FLAGS } from "@/lib/countryFlags";
 import {
   PREREG_T,
   hasStoredLang,
@@ -14,6 +16,7 @@ import {
 } from "@/lib/preregistroI18n";
 
 type Company = { id: string; name: string };
+type Office = { id: string; name: string; country: string };
 type Division = { id: string; company_id: string; name: string };
 type VisitType = { id: string; name: string };
 type FieldConfig = {
@@ -62,6 +65,14 @@ export default function PreRegistro() {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
   const [visitorCompanySuggestions, setVisitorCompanySuggestions] = useState<string[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
+  // Oficina a la que va este pre-registro. Se preselecciona sola con la
+  // zona horaria del dispositivo (ver detectCountry.ts) para no tener que
+  // repartir un link distinto por país, pero siempre se muestra cuál quedó
+  // y se puede cambiar: mandar a alguien a la recepción equivocada en
+  // silencio sería peor que preguntarle.
+  const [officeId, setOfficeId] = useState("");
+  const [officePickerOpen, setOfficePickerOpen] = useState(false);
   const [fields, setFields] = useState<FieldConfig[]>([]);
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
   const [form, setForm] = useState(emptyForm);
@@ -99,6 +110,7 @@ export default function PreRegistro() {
   // empresa en particular.
   const companyDivisions = divisions.filter((division) => division.company_id === form.companyId);
   const hasDivisions = companyDivisions.length > 0;
+  const selectedOffice = offices.find((office) => office.id === officeId) ?? null;
 
   // Las 5 cargas van juntas y SÍ revisan el error de cada una. Antes cada
   // una hacía `data?.x ?? []` ignorando el error: si el backend respondía
@@ -115,13 +127,14 @@ export default function PreRegistro() {
       const call = (action: string) =>
         supabase.functions.invoke("public-preregister", { body: { action } });
 
-      const [companiesRes, divisionsRes, visitTypesRes, visitorCompaniesRes, fieldsRes] =
+      const [companiesRes, divisionsRes, visitTypesRes, visitorCompaniesRes, fieldsRes, officesRes] =
         await Promise.all([
           call("companies"),
           call("divisions"),
           call("visitTypes"),
           call("visitorCompanies"),
           call("fieldConfig"),
+          call("offices"),
         ]);
 
       if (cancelled) return;
@@ -129,6 +142,12 @@ export default function PreRegistro() {
       // "visitorCompanies" son solo sugerencias de autocompletado: si esa
       // falla el formulario sigue siendo perfectamente usable, así que no
       // cuenta como error de carga. Las otras cuatro sí.
+      // "offices" queda fuera de esta lista a propósito: es la acción más
+      // nueva del backend, y si el front se desplegara antes que la función
+      // de borde, esa llamada respondería "Acción inválida" y tumbaría toda
+      // la página pública. Sin oficinas simplemente no se muestra el
+      // selector de recepción y el pre-registro sigue funcionando como
+      // antes. Igual con "visitorCompanies", que son solo sugerencias.
       const failed = [companiesRes, divisionsRes, visitTypesRes, fieldsRes].some(
         (res) => res.error || res.data?.error || !res.data
       );
@@ -146,6 +165,40 @@ export default function PreRegistro() {
         mergeVisitorCompanySuggestions(visitorCompaniesRes.data?.visitorCompanies ?? [])
       );
       setFields(fieldsRes.data.fields ?? []);
+
+      // Un solo link para todas las oficinas: aquí se resuelve cuál toca.
+      // Prioridad: lo que venga en la URL (?oficina=madrid) para cuando se
+      // quiera compartir un link ya dirigido, luego la zona horaria del
+      // dispositivo, y si con eso no alcanza (o el país tiene más de una
+      // oficina) se le pregunta al visitante.
+      const activeOffices: Office[] = officesRes.data?.offices ?? [];
+      setOffices(activeOffices);
+
+      const requested = new URLSearchParams(window.location.search).get("oficina")?.toLowerCase();
+      const fromUrl = requested
+        ? activeOffices.find(
+            (office) =>
+              office.id === requested ||
+              office.name.toLowerCase() === requested ||
+              office.country.toLowerCase() === requested
+          )
+        : undefined;
+
+      const detectedCountry = detectCountryFromDevice();
+      const matchesDetected = detectedCountry
+        ? activeOffices.filter((office) => office.country === detectedCountry)
+        : [];
+
+      const resolved = fromUrl ?? (matchesDetected.length === 1 ? matchesDetected[0] : undefined);
+
+      if (resolved) {
+        setOfficeId(resolved.id);
+      } else if (activeOffices.length === 1) {
+        setOfficeId(activeOffices[0].id);
+      } else {
+        setOfficePickerOpen(true);
+      }
+
       setDataReady(true);
     }
 
@@ -461,10 +514,18 @@ export default function PreRegistro() {
       return;
     }
 
+    // Si hay más de una oficina activa, la del pre-registro no puede quedar
+    // en blanco: sin ella, recepción no sabría a qué sede va esta visita.
+    if (offices.length > 1 && !officeId) {
+      setError(t.officeRequired);
+      setOfficePickerOpen(true);
+      return;
+    }
+
     setSubmitting(true);
 
     const { data, error: invokeError } = await supabase.functions.invoke("public-preregister", {
-      body: { action: "create", ...form, visitType: resolvedVisitType, customAnswers },
+      body: { action: "create", ...form, officeId, visitType: resolvedVisitType, customAnswers },
     });
 
     setSubmitting(false);
@@ -512,7 +573,61 @@ export default function PreRegistro() {
         </div>
         <h1 className="font-display text-xl font-bold text-ink">{t.appName}</h1>
         <p className="mb-1 text-sm font-medium text-ink-soft">{t.subtitle}</p>
-        <p className="mb-6 text-sm text-ink-soft">{t.intro}</p>
+        <p className="mb-4 text-sm text-ink-soft">{t.intro}</p>
+
+        {/* Qué recepción quedó elegida, siempre a la vista. Si se detectó
+            sola, se muestra con un "Cambiar" al lado; si no se pudo
+            detectar, se pregunta de entrada. */}
+        {offices.length > 0 && (
+          <div className="mb-6 rounded-lg border border-line bg-paper p-3">
+            {!officePickerOpen && selectedOffice ? (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+                    {t.officeVisiting}
+                  </p>
+                  <p className="flex items-center gap-1.5 font-display text-base font-bold text-ink">
+                    <span className="text-xl leading-none">
+                      {COUNTRY_FLAGS[selectedOffice.country] ?? ""}
+                    </span>
+                    {selectedOffice.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOfficePickerOpen(true)}
+                  className="shrink-0 text-sm font-medium text-accent hover:text-accent-dark"
+                >
+                  {t.officeChange}
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-2 text-sm font-medium text-ink">{t.officeQuestion}</p>
+                <div className="flex flex-wrap gap-2">
+                  {offices.map((office) => (
+                    <button
+                      key={office.id}
+                      type="button"
+                      onClick={() => {
+                        setOfficeId(office.id);
+                        setOfficePickerOpen(false);
+                      }}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                        office.id === officeId
+                          ? "border-accent bg-accent-tint text-accent"
+                          : "border-line text-ink hover:border-accent"
+                      }`}
+                    >
+                      <span className="text-lg leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
+                      {office.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

@@ -30,6 +30,7 @@ type Preregistration = {
   created_at: string;
   employees: { full_name: string } | null;
   companies: { name: string } | null;
+  offices: { name: string; country: string; address: string | null; phone: string | null } | null;
 };
 
 function formatDate(value: string) {
@@ -336,11 +337,19 @@ export default function PreRegistroConfirmacion() {
 
         <p className="mt-6 text-center text-xs text-ink-soft">{t.saveLinkNote}</p>
 
-        <p className="mt-4 border-t border-line pt-4 text-center text-xs text-ink-soft">
-          Av. I. Morones Prieto No. 2110, Local 3-B, Col. Loma Larga, C.P. 64710, Monterrey, N.L.
-          <br />
-          {t.phoneLabel}: +52 81 2085 8093
-        </p>
+        {/* Datos de contacto de la oficina a la que va ESTE pre-registro.
+            Antes estaban fijos en el código con la dirección de Monterrey,
+            así que un visitante de Madrid recibía la dirección equivocada.
+            Si la oficina todavía no tiene dirección cargada (o el
+            pre-registro es viejo y no trae oficina), no se muestra nada en
+            vez de mostrar una dirección que no corresponde. */}
+        {(details.offices?.address || details.offices?.phone) && (
+          <p className="mt-4 border-t border-line pt-4 text-center text-xs text-ink-soft">
+            {details.offices.address}
+            {details.offices.address && details.offices.phone && <br />}
+            {details.offices.phone && `${t.phoneLabel}: ${details.offices.phone}`}
+          </p>
+        )}
       </div>
 
       {zoomedSrc && (

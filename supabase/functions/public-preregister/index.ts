@@ -136,7 +136,14 @@ Deno.serve(async (req) => {
   // varias recargas; "create" (la acción real a limitar contra spam) más
   // ajustado pero generoso para una persona real; "get" (pantalla de
   // confirmación) igual que antes.
-  const LOOKUP_ACTIONS = new Set(["companies", "divisions", "visitTypes", "visitorCompanies", "fieldConfig"]);
+  const LOOKUP_ACTIONS = new Set([
+    "companies",
+    "divisions",
+    "visitTypes",
+    "visitorCompanies",
+    "fieldConfig",
+    "offices",
+  ]);
   let rateLimitBucket: string;
   let rateLimit: number;
   if (action === "get") {
@@ -162,6 +169,19 @@ Deno.serve(async (req) => {
   if (action === "companies") {
     const { data } = await adminClient.from("companies").select("id, name").eq("active", true).order("name");
     return jsonResponse({ companies: data ?? [] });
+  }
+
+  // Oficinas activas, para que el link público (uno solo, sin /mx ni /es)
+  // pueda preseleccionar la que corresponde según la zona horaria del
+  // dispositivo del visitante y dejarlo cambiarla. Solo nombre y país: no
+  // es información sensible, es lo que ya dice el letrero de la recepción.
+  if (action === "offices") {
+    const { data } = await adminClient
+      .from("offices")
+      .select("id, name, country")
+      .eq("active", true)
+      .order("name");
+    return jsonResponse({ offices: data ?? [] });
   }
 
   if (action === "divisions") {
@@ -234,7 +254,7 @@ Deno.serve(async (req) => {
     const { data, error } = await adminClient
       .from("visit_preregistrations")
       .select(
-        "visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, custom_answers, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name)"
+        "visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, custom_answers, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name), offices(name, country, address, phone)"
       )
       .eq("access_token", token)
       .maybeSingle();
@@ -377,6 +397,26 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "La empresa no existe." }, 400);
   }
 
+  // Oficina destino: la manda el front ya resuelta (detectada por zona
+  // horaria y confirmada por el visitante). Se valida contra la tabla en
+  // vez de confiar en el cliente. Si no viene, queda null -- los
+  // pre-registros viejos tampoco la tienen y deben seguir funcionando.
+  const officeIdRaw = body.officeId;
+  let officeId: string | null = null;
+  if (typeof officeIdRaw === "string" && officeIdRaw) {
+    const { data: office } = await adminClient
+      .from("offices")
+      .select("id")
+      .eq("id", officeIdRaw)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (!office) {
+      return jsonResponse({ error: "La oficina no existe." }, 400);
+    }
+    officeId = office.id;
+  }
+
   // "A quién visitas" ya no se pide en el formulario público (exponía la
   // lista completa de colaboradores sin autenticación): se elige en
   // recepción al hacer el check-in real, así que aquí es opcional.
@@ -401,6 +441,7 @@ Deno.serve(async (req) => {
     .from("visit_preregistrations")
     .insert({
       company_id: companyId,
+      office_id: officeId,
       visitor_name: visitorName,
       visitor_company: typeof visitorCompany === "string" && visitorCompany ? visitorCompany : null,
       visitor_phone: typeof visitorPhone === "string" && visitorPhone ? visitorPhone : null,

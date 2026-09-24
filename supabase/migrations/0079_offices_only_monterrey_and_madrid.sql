@@ -10,7 +10,12 @@
 -- src/lib/countryFlags.ts); la fila de Bogotá se conserva pero inactiva,
 -- para no perder el registro ni romper ninguna llave foránea si algún día
 -- se retoma.
-delete from offices where name = 'Cd. de México' and country = 'MX';
+-- Se filtra por país y NO por nombre: al escribir esto por primera vez el
+-- where iba por nombre ('Colombia', 'España', ...) y no coincidió con nada,
+-- porque esas filas ya habían sido renombradas a mano antes -- la
+-- desactivación de Colombia se quedó sin aplicar en silencio. Por país es
+-- idempotente: da igual cómo se llame la fila ahorita.
+delete from offices where country = 'MX' and name in ('Cd. de México', 'Ciudad de México', 'CDMX');
 
-update offices set name = 'Madrid' where name in ('España', 'Madrid, España') and country = 'ES';
-update offices set name = 'Bogotá', active = false where name in ('Colombia', 'Bogotá, Colombia') and country = 'CO';
+update offices set name = 'Madrid' where country = 'ES';
+update offices set name = 'Bogotá', active = false where country = 'CO';

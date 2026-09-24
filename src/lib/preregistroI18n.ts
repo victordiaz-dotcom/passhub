@@ -74,6 +74,10 @@ export const PREREG_T = {
     bootstrapErrorBody:
       "Revisa tu conexión y vuelve a intentar. Si acabas de recargar varias veces, espera un par de minutos antes de reintentar.",
     retry: "Reintentar",
+    officeVisiting: "Recepción que visitas",
+    officeChange: "Cambiar",
+    officeQuestion: "¿A qué recepción vas?",
+    officeRequired: "Selecciona la recepción que visitas.",
     notAvailableTitle: "Pre-registro no disponible",
     notAvailableFallback: "Revisa que el link esté completo.",
     missingTokenInUrl: "Falta el código del pre-registro en el link.",
@@ -138,6 +142,10 @@ export const PREREG_T = {
     bootstrapErrorBody:
       "Check your connection and try again. If you just reloaded several times, wait a couple of minutes before retrying.",
     retry: "Retry",
+    officeVisiting: "Reception you're visiting",
+    officeChange: "Change",
+    officeQuestion: "Which reception are you visiting?",
+    officeRequired: "Select the reception you're visiting.",
     notAvailableTitle: "Pre-registration not available",
     notAvailableFallback: "Check that the link is complete.",
     missingTokenInUrl: "The pre-registration code is missing from the link.",

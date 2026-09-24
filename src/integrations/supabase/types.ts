@@ -283,24 +283,30 @@ export type Database = {
       offices: {
         Row: {
           active: boolean
+          address: string | null
           country: string
           created_at: string
           id: string
           name: string
+          phone: string | null
         }
         Insert: {
           active?: boolean
+          address?: string | null
           country: string
           created_at?: string
           id?: string
           name: string
+          phone?: string | null
         }
         Update: {
           active?: boolean
+          address?: string | null
           country?: string
           created_at?: string
           id?: string
           name?: string
+          phone?: string | null
         }
         Relationships: []
       }
@@ -429,6 +435,7 @@ export type Database = {
           has_vehicle: boolean | null
           host_employee_id: string | null
           id: string
+          office_id: string | null
           reason: string | null
           status: Database["public"]["Enums"]["prereg_status"]
           used_at: string | null
@@ -454,6 +461,7 @@ export type Database = {
           has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string
+          office_id?: string | null
           reason?: string | null
           status?: Database["public"]["Enums"]["prereg_status"]
           used_at?: string | null
@@ -479,6 +487,7 @@ export type Database = {
           has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string
+          office_id?: string | null
           reason?: string | null
           status?: Database["public"]["Enums"]["prereg_status"]
           used_at?: string | null
