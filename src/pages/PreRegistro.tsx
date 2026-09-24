@@ -117,7 +117,6 @@ export default function PreRegistro() {
   // empresa en particular.
   const companyDivisions = divisions.filter((division) => division.company_id === form.companyId);
   const hasDivisions = companyDivisions.length > 0;
-  const selectedOffice = offices.find((office) => office.id === officeId) ?? null;
   // "¿A qué instalación vas?" solo aparece si la oficina elegida tiene
   // instalaciones registradas (hoy Madrid: Envia.com/Fulfillment; Monterrey
   // también tiene, así que igual aparecería ahí -- no está hardcodeado a
@@ -614,57 +613,34 @@ export default function PreRegistro() {
         <p className="mb-1 text-sm font-medium text-ink-soft">{t.subtitle}</p>
         <p className="mb-4 text-sm text-ink-soft">{t.intro}</p>
 
-        {/* Qué recepción quedó elegida, siempre a la vista. Si se detectó
-            sola, se muestra con un "Cambiar" al lado; si no se pudo
-            detectar, se pregunta de entrada. */}
-        {offices.length > 0 && (
+        {/* Si la zona horaria (o el ?oficina= de la URL) ya resolvió una
+            oficina sin ambigüedad, no se muestra nada aquí -- se toma sola
+            y ya, sin preguntar ni mostrar un "Cambiar". Este bloque solo
+            aparece cuando de verdad no se pudo resolver sola (país con más
+            de una oficina detectada, o ninguna zona horaria conocida). */}
+        {officePickerOpen && (
           <div className="mb-6 rounded-lg border border-line bg-paper p-3">
-            {!officePickerOpen && selectedOffice ? (
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-                    {t.officeVisiting}
-                  </p>
-                  <p className="flex items-center gap-1.5 font-display text-base font-bold text-ink">
-                    <span className="text-xl leading-none">
-                      {COUNTRY_FLAGS[selectedOffice.country] ?? ""}
-                    </span>
-                    {selectedOffice.name}
-                  </p>
-                </div>
+            <p className="mb-2 text-sm font-medium text-ink">{t.officeQuestion}</p>
+            <div className="flex flex-wrap gap-2">
+              {offices.map((office) => (
                 <button
+                  key={office.id}
                   type="button"
-                  onClick={() => setOfficePickerOpen(true)}
-                  className="shrink-0 text-sm font-medium text-accent hover:text-accent-dark"
+                  onClick={() => {
+                    setOfficeId(office.id);
+                    setOfficePickerOpen(false);
+                  }}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    office.id === officeId
+                      ? "border-accent bg-accent-tint text-accent"
+                      : "border-line text-ink hover:border-accent"
+                  }`}
                 >
-                  {t.officeChange}
+                  <span className="text-lg leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
+                  {office.name}
                 </button>
-              </div>
-            ) : (
-              <div>
-                <p className="mb-2 text-sm font-medium text-ink">{t.officeQuestion}</p>
-                <div className="flex flex-wrap gap-2">
-                  {offices.map((office) => (
-                    <button
-                      key={office.id}
-                      type="button"
-                      onClick={() => {
-                        setOfficeId(office.id);
-                        setOfficePickerOpen(false);
-                      }}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                        office.id === officeId
-                          ? "border-accent bg-accent-tint text-accent"
-                          : "border-line text-ink hover:border-accent"
-                      }`}
-                    >
-                      <span className="text-lg leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
-                      {office.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
 

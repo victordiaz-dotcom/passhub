@@ -74,8 +74,6 @@ export const PREREG_T = {
     bootstrapErrorBody:
       "Revisa tu conexión y vuelve a intentar. Si acabas de recargar varias veces, espera un par de minutos antes de reintentar.",
     retry: "Reintentar",
-    officeVisiting: "Recepción que visitas",
-    officeChange: "Cambiar",
     officeQuestion: "¿A qué recepción vas?",
     officeRequired: "Selecciona la recepción que visitas.",
     facilityLabel: "¿A qué instalación vas?",
@@ -144,8 +142,6 @@ export const PREREG_T = {
     bootstrapErrorBody:
       "Check your connection and try again. If you just reloaded several times, wait a couple of minutes before retrying.",
     retry: "Retry",
-    officeVisiting: "Reception you're visiting",
-    officeChange: "Change",
     officeQuestion: "Which reception are you visiting?",
     officeRequired: "Select the reception you're visiting.",
     facilityLabel: "Which facility are you visiting?",
