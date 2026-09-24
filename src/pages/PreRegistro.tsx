@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
-import { detectCountryFromDevice } from "@/lib/detectCountry";
 import { COUNTRY_FLAGS } from "@/lib/countryFlags";
 import {
   PREREG_T,
@@ -68,11 +67,10 @@ export default function PreRegistro() {
   const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
   const [visitorCompanySuggestions, setVisitorCompanySuggestions] = useState<string[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
-  // Oficina a la que va este pre-registro. Se preselecciona sola con la
-  // zona horaria del dispositivo (ver detectCountry.ts) para no tener que
-  // repartir un link distinto por país, pero siempre se muestra cuál quedó
-  // y se puede cambiar: mandar a alguien a la recepción equivocada en
-  // silencio sería peor que preguntarle.
+  // Oficina a la que va este pre-registro. Se preselecciona sola con el
+  // país de la IP real del visitante (lo resuelve el servidor) para no
+  // tener que repartir un link distinto por país. Si no se puede resolver
+  // sin ambigüedad, se le pregunta.
   const [officeId, setOfficeId] = useState("");
   const [officePickerOpen, setOfficePickerOpen] = useState(false);
   // Instalaciones de la oficina elegida (ej. Madrid: Envia.com,
@@ -182,9 +180,13 @@ export default function PreRegistro() {
 
       // Un solo link para todas las oficinas: aquí se resuelve cuál toca.
       // Prioridad: lo que venga en la URL (?oficina=madrid) para cuando se
-      // quiera compartir un link ya dirigido, luego la zona horaria del
-      // dispositivo, y si con eso no alcanza (o el país tiene más de una
-      // oficina) se le pregunta al visitante.
+      // quiera compartir un link ya dirigido, luego el país de la IP real
+      // (lo resuelve el servidor, ver getClientCountry() en la función de
+      // borde) -- NO la zona horaria del dispositivo: esa es ambigua (el
+      // reloj del sistema no cambia con una VPN, así que alguien
+      // conectándose desde otro país seguía viendo el país equivocado). Si
+      // con eso no alcanza (o el país tiene más de una oficina) se le
+      // pregunta al visitante.
       const activeOffices: Office[] = officesRes.data?.offices ?? [];
       setOffices(activeOffices);
 
@@ -198,7 +200,7 @@ export default function PreRegistro() {
           )
         : undefined;
 
-      const detectedCountry = detectCountryFromDevice();
+      const detectedCountry: string | null = officesRes.data?.detectedCountry ?? null;
       const matchesDetected = detectedCountry
         ? activeOffices.filter((office) => office.country === detectedCountry)
         : [];

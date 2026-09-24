@@ -16,7 +16,7 @@ type Employee = Pick<Tables<"employees">, "id" | "full_name">;
 type Company = Pick<Tables<"companies">, "id" | "name">;
 type Division = Pick<Tables<"divisions">, "id" | "name">;
 type VisitType = Pick<Tables<"visit_types">, "id" | "name">;
-type OfficeFacility = Pick<Tables<"office_facilities">, "id" | "name">;
+type OfficeFacility = { id: string; name: string; label: string };
 
 const OTROS_SENTINEL = "__otros__";
 type InsideVisit = Pick<
@@ -196,17 +196,37 @@ export default function CheckIn() {
 
   useEffect(() => {
     const officeId = profile?.office_id;
-    if (!officeId) {
-      setOfficeFacilities([]);
+    if (officeId) {
+      // Cuenta con oficina asignada: solo las instalaciones de esa oficina,
+      // sin ambigüedad posible (una sola oficina en juego).
+      supabase
+        .from("office_facilities")
+        .select("id, name")
+        .eq("office_id", officeId)
+        .eq("active", true)
+        .order("name")
+        .then(({ data }) => setOfficeFacilities((data ?? []).map((f) => ({ ...f, label: f.name }))));
       return;
     }
+
+    // office_id null = superadmin, o un admin sin oficina asignada -- ve
+    // todo, así que aquí "todo" incluye las instalaciones de TODAS las
+    // oficinas. Se le agrega el nombre de la oficina a la etiqueta porque
+    // dos oficinas distintas pueden tener una instalación con el mismo
+    // nombre (ej. "Envia.com" existe en Monterrey Y en Madrid) -- sin la
+    // oficina en la etiqueta no se podría saber a cuál se refería lo
+    // guardado.
     supabase
       .from("office_facilities")
-      .select("id, name")
-      .eq("office_id", officeId)
+      .select("id, name, offices(name)")
       .eq("active", true)
       .order("name")
-      .then(({ data }) => setOfficeFacilities(data ?? []));
+      .then(({ data }) => {
+        const rows = (data as Array<{ id: string; name: string; offices: { name: string } | null }> | null) ?? [];
+        setOfficeFacilities(
+          rows.map((f) => ({ id: f.id, name: f.name, label: `${f.name} (${f.offices?.name ?? "?"})` }))
+        );
+      });
   }, [profile?.office_id]);
 
   useEffect(() => {
@@ -915,8 +935,8 @@ export default function CheckIn() {
                       >
                         <option value="" disabled></option>
                         {officeFacilities.map((option) => (
-                          <option key={option.id} value={option.name}>
-                            {option.name}
+                          <option key={option.id} value={option.label}>
+                            {option.label}
                           </option>
                         ))}
                       </select>

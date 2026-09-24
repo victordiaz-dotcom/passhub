@@ -48,6 +48,23 @@ function getClientIp(req: Request): string {
   return req.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
+// País del visitante según su IP real, puesto por Cloudflare (mismo borde
+// que ya pone cf-connecting-ip) -- nadie de afuera puede falsificarlo. Se
+// usa para preseleccionar la oficina en el link único de pre-registro
+// (México/España) en vez de la zona horaria del DISPOSITIVO: esa se puede
+// leer con Intl.DateTimeFormat() en el navegador, pero una VPN cambia la
+// IP/ubicación real, NO la zona horaria del sistema operativo -- así que
+// por horario, alguien conectado por VPN seguía viendo el país equivocado.
+// Por IP sí reacciona a la VPN, que es justo el caso de uso real (alguien
+// entrando desde otro país temporalmente). "XX" es el valor que manda
+// Cloudflare cuando no pudo resolver el país (IP privada/desconocida) --
+// se trata igual que "no se pudo detectar".
+function getClientCountry(req: Request): string | null {
+  const country = req.headers.get("cf-ipcountry");
+  if (!country || country === "XX" || country === "T1") return null;
+  return country.toUpperCase();
+}
+
 // Sin tabla de rate limiting compartida entre funciones (cada Edge Function
 // se despliega por separado): se repite este helper corto en cada función
 // pública sin JWT. Ventana fija por (bucket, identifier) sobre
@@ -172,16 +189,17 @@ Deno.serve(async (req) => {
   }
 
   // Oficinas activas, para que el link público (uno solo, sin /mx ni /es)
-  // pueda preseleccionar la que corresponde según la zona horaria del
-  // dispositivo del visitante y dejarlo cambiarla. Solo nombre y país: no
-  // es información sensible, es lo que ya dice el letrero de la recepción.
+  // pueda preseleccionar la que corresponde -- ver getClientCountry() más
+  // arriba para por qué se resuelve por IP y no por zona horaria. Solo
+  // nombre y país: no es información sensible, es lo que ya dice el
+  // letrero de la recepción.
   if (action === "offices") {
     const { data } = await adminClient
       .from("offices")
       .select("id, name, country")
       .eq("active", true)
       .order("name");
-    return jsonResponse({ offices: data ?? [] });
+    return jsonResponse({ offices: data ?? [], detectedCountry: getClientCountry(req) });
   }
 
   // Instalaciones de una oficina puntual (ej. Madrid: Envia.com,
