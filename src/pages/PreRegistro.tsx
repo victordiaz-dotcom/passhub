@@ -46,8 +46,14 @@ const emptyForm = {
   visitTime: "",
 };
 
+// Fecha de HOY en la zona del dispositivo, no en UTC. Con toISOString()
+// (UTC), a partir de las ~18:00 en México el "hoy" del formulario ya era
+// el día siguiente: el campo de fecha ponía mañana como mínimo y un
+// visitante no podía pre-registrarse para hoy mismo.
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
 
 export default function PreRegistro() {
@@ -74,11 +80,9 @@ export default function PreRegistro() {
   // respuesta -- se ve mejor mostrar un solo estado de carga hasta que las
   // 5 ya resolvieron (con o sin error) que dejar que el formulario se arme
   // a pedazos frente a la persona.
-  const [loadedCount, setLoadedCount] = useState(0);
-  const dataReady = loadedCount >= 5;
-  function markLoaded() {
-    setLoadedCount((n) => n + 1);
-  }
+  const [dataReady, setDataReady] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   function changeLang(next: Lang) {
     setLang(next);
@@ -96,42 +100,60 @@ export default function PreRegistro() {
   const companyDivisions = divisions.filter((division) => division.company_id === form.companyId);
   const hasDivisions = companyDivisions.length > 0;
 
+  // Las 5 cargas van juntas y SÍ revisan el error de cada una. Antes cada
+  // una hacía `data?.x ?? []` ignorando el error: si el backend respondía
+  // 429 (basta con recargar la página unas cuantas veces, cada carga son 5
+  // llamadas) o cualquier 5xx, el visitante terminaba con el formulario
+  // armado pero con la lista de empresas VACÍA y obligatoria, sin ninguna
+  // explicación de por qué no podía continuar.
   useEffect(() => {
-    supabase.functions
-      .invoke("public-preregister", { body: { action: "companies" } })
-      .then(({ data }) => setCompanies(data?.companies ?? []))
-      .finally(markLoaded);
-  }, []);
+    let cancelled = false;
 
-  useEffect(() => {
-    supabase.functions
-      .invoke("public-preregister", { body: { action: "divisions" } })
-      .then(({ data }) => setDivisions(data?.divisions ?? []))
-      .finally(markLoaded);
-  }, []);
+    async function loadAll() {
+      setBootstrapError(false);
 
-  useEffect(() => {
-    supabase.functions
-      .invoke("public-preregister", { body: { action: "visitTypes" } })
-      .then(({ data }) => setVisitTypes(data?.visitTypes ?? []))
-      .finally(markLoaded);
-  }, []);
+      const call = (action: string) =>
+        supabase.functions.invoke("public-preregister", { body: { action } });
 
-  useEffect(() => {
-    supabase.functions
-      .invoke("public-preregister", { body: { action: "visitorCompanies" } })
-      .then(({ data }) =>
-        setVisitorCompanySuggestions(mergeVisitorCompanySuggestions(data?.visitorCompanies ?? []))
-      )
-      .finally(markLoaded);
-  }, []);
+      const [companiesRes, divisionsRes, visitTypesRes, visitorCompaniesRes, fieldsRes] =
+        await Promise.all([
+          call("companies"),
+          call("divisions"),
+          call("visitTypes"),
+          call("visitorCompanies"),
+          call("fieldConfig"),
+        ]);
 
-  useEffect(() => {
-    supabase.functions
-      .invoke("public-preregister", { body: { action: "fieldConfig" } })
-      .then(({ data }) => setFields(data?.fields ?? []))
-      .finally(markLoaded);
-  }, []);
+      if (cancelled) return;
+
+      // "visitorCompanies" son solo sugerencias de autocompletado: si esa
+      // falla el formulario sigue siendo perfectamente usable, así que no
+      // cuenta como error de carga. Las otras cuatro sí.
+      const failed = [companiesRes, divisionsRes, visitTypesRes, fieldsRes].some(
+        (res) => res.error || res.data?.error || !res.data
+      );
+
+      if (failed) {
+        setBootstrapError(true);
+        setDataReady(true);
+        return;
+      }
+
+      setCompanies(companiesRes.data.companies ?? []);
+      setDivisions(divisionsRes.data.divisions ?? []);
+      setVisitTypes(visitTypesRes.data.visitTypes ?? []);
+      setVisitorCompanySuggestions(
+        mergeVisitorCompanySuggestions(visitorCompaniesRes.data?.visitorCompanies ?? [])
+      );
+      setFields(fieldsRes.data.fields ?? []);
+      setDataReady(true);
+    }
+
+    loadAll();
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   // El return anticipado va DESPUÉS de todos los hooks de arriba (useState/
   // useEffect), nunca antes -- si estuviera antes, la primera vez que
@@ -174,6 +196,28 @@ export default function PreRegistro() {
         <div className="card w-full max-w-sm p-8 text-center">
           <img src="/logo.png" alt="PassHub" className="mx-auto mb-6 h-14 w-auto" />
           <p className="text-sm text-ink-soft">{t.loading}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (bootstrapError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper p-6">
+        <div className="card w-full max-w-sm p-8 text-center">
+          <img src="/logo.png" alt="PassHub" className="mx-auto mb-6 h-14 w-auto" />
+          <h1 className="font-display text-lg font-bold text-ink">{t.bootstrapErrorTitle}</h1>
+          <p className="mt-2 text-sm text-ink-soft">{t.bootstrapErrorBody}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setDataReady(false);
+              setReloadKey((n) => n + 1);
+            }}
+            className="btn-primary mt-6 w-full"
+          >
+            {t.retry}
+          </button>
         </div>
       </div>
     );
@@ -428,6 +472,15 @@ export default function PreRegistro() {
     if (invokeError || data?.error) {
       const rawError = data?.error ?? (await edgeFunctionErrorMessage(invokeError, t.errorFallback));
       setError(translateServerError(rawError, lang));
+      return;
+    }
+
+    // El chequeo de arriba deja pasar el caso "sin error pero sin datos"
+    // (respuesta vacía o no-JSON): ahí data es null y leer data.token
+    // tronaba toda la página pública con un TypeError, o navegaba a
+    // /confirmation/undefined. Mejor mostrar el error normal del formulario.
+    if (!data?.token) {
+      setError(t.errorFallback);
       return;
     }
 

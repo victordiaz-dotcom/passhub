@@ -263,7 +263,11 @@ export default function CheckIn() {
       .select(
         "id, folio, visitor_name, check_in_at, employees(full_name), companies(name)"
       )
-      .eq("visit_date", todayLocal())
+      // Sin filtro por fecha a propósito: "dentro" ya es la condición
+      // correcta. Filtrar además por la fecha de hoy escondía de recepción
+      // a quien entró ayer y sigue adentro (pasó la medianoche), dejándolo
+      // imposible de marcar como salida desde esta pantalla -- aunque el
+      // guardia sí lo seguía viendo, porque su consulta nunca filtró fecha.
       .eq("status", "dentro")
       .order("check_in_at", { ascending: false });
     setInsideVisits((data as InsideVisit[] | null) ?? []);
@@ -316,10 +320,21 @@ export default function CheckIn() {
       setFlaggedWarning(null);
       return;
     }
+    // "cancelled" además de limpiar el timeout: si la consulta ya salió,
+    // limpiar el timeout no la detiene, y una respuesta lenta de un nombre
+    // anterior podía llegar después de otro más nuevo -- colgándole la
+    // advertencia de "comportamiento violento/hostil" a la persona
+    // equivocada, que es una acusación seria.
+    let cancelled = false;
     const timeout = window.setTimeout(() => {
-      findFlaggedVisitor(visitorName).then(setFlaggedWarning);
+      findFlaggedVisitor(visitorName).then((match) => {
+        if (!cancelled) setFlaggedWarning(match);
+      });
     }, 400);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
   }, [visitorName]);
 
   useEffect(() => {
@@ -382,12 +397,29 @@ export default function CheckIn() {
 
     // La empresa anfitriona del formulario se ajusta a la del pre-registro
     // escaneado, en vez de exigir que ya coincidiera con lo seleccionado.
-    setSelectedCompanyId(data.company_id);
+    // Un pre-registro puede traer una empresa o un colaborador que ya se
+    // desactivó desde que se generó el QR. Si se cargaran tal cual, el
+    // selector quedaría en blanco (porque ese id no está entre las
+    // opciones activas) sin decir por qué: la empresa se vería vacía pero
+    // obligatoria, y el colaborador quedaría vacío Y sin marcar como
+    // obligatorio, dejando registrar la visita sin anfitrión visible.
+    const scannedHostId = data.host_employee_id ?? "";
+    const companyMissing = !companies.some((company) => company.id === data.company_id);
+    const hostMissing = !!scannedHostId && !employees.some((employee) => employee.id === scannedHostId);
+
+    setSelectedCompanyId(companyMissing ? "" : data.company_id);
     setVisitorName(data.visitor_name);
     setVisitorCompany(data.visitor_company ?? "");
     setVisitorPhone((data as { visitor_phone?: string }).visitor_phone ?? "");
     setVisitorEmail((data as { visitor_email?: string }).visitor_email ?? "");
-    setHostEmployeeId(data.host_employee_id ?? "");
+    setHostEmployeeId(hostMissing ? "" : scannedHostId);
+
+    if (companyMissing || hostMissing) {
+      const faltantes = [companyMissing ? "la empresa anfitriona" : null, hostMissing ? "el colaborador que recibe" : null]
+        .filter(Boolean)
+        .join(" y ");
+      setError(`Este pre-registro traía ${faltantes} con un registro que ya no está activo. Vuelve a seleccionarlo antes de registrar la visita.`);
+    }
     const scannedVisitType = (data as { visit_type?: string }).visit_type ?? "";
     if (scannedVisitType && !visitTypes.some((option) => option.name === scannedVisitType)) {
       setVisitType(OTROS_SENTINEL);
@@ -504,7 +536,19 @@ export default function CheckIn() {
         vehicle_model: hasVehicle ? vehicleModel || null : null,
         reason: reason || null,
         division: hasDivisions ? division || null : null,
-        facility: hasFacilities ? facility || null : null,
+        // visit_date se manda explícitamente: el default de la columna es
+        // current_date, que Postgres evalúa en la zona de la BD (UTC), así
+        // que a partir de las ~18:00 hora de Monterrey toda visita quedaba
+        // fechada MAÑANA -- desaparecía de "visitantes dentro" (que filtra
+        // por la fecha local del navegador), salía con folio del día
+        // siguiente, y la fecha que capturó recepción se descartaba.
+        visit_date: visitDate,
+        // La columna facility solo existe donde ya se aplicó la migración
+        // 0075: si esta oficina no tiene instalaciones configuradas, la
+        // llave ni siquiera se manda, para no romper el insert completo
+        // (PostgREST rechaza la fila entera si nombra una columna que no
+        // existe en el esquema).
+        ...(hasFacilities ? { facility: facility || null } : {}),
         visitor_photo_path: visitorPhotoPath,
         id_photo_path: idPhotoPath,
         created_by: session.user.id,

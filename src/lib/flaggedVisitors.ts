@@ -42,7 +42,14 @@ export async function flagVisitor(params: {
   flaggedBy: string;
 }) {
   return supabase.from("flagged_visitors").insert({
-    full_name: params.fullName,
+    // Se guarda ya recortado: la columna generada normalized_name usa
+    // trim() de Postgres, que solo quita ESPACIOS -- un nombre pegado con
+    // un tabulador o un salto de línea quedaba normalizado con un espacio
+    // suelto en la orilla y ya nunca volvía a coincidir con la búsqueda
+    // del front (que usa .trim() de JS, el cual sí quita todo espacio en
+    // blanco). Resultado: la persona quedaba marcada pero la advertencia
+    // no volvía a salir nunca.
+    full_name: params.fullName.trim(),
     note: params.note.trim() || null,
     visit_id: params.visitId,
     flagged_by: params.flaggedBy,

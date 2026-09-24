@@ -20,8 +20,19 @@ function corsHeadersFor(origin: string | null) {
   };
 }
 
+// "Hoy" en la zona del negocio, no en UTC. Con toISOString() el servidor
+// pasaba al día siguiente a partir de las 18:00 hora de México y rechazaba
+// un pre-registro para HOY con "La fecha de la visita no puede ser anterior
+// a hoy". Se usa Monterrey como piso porque es la zona más atrasada de las
+// oficinas activas: si allá todavía es hoy, en Madrid ya es hoy o después,
+// así que ninguna de las dos se rechaza por error.
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Monterrey",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 const MAX_BODY_BYTES = 100_000;

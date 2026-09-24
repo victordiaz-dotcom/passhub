@@ -70,6 +70,10 @@ export const PREREG_T = {
     errorVisitType: "Escribe el tipo de visita.",
     errorFallback: "No se pudo crear el pre-registro. Intenta de nuevo.",
     loading: "Cargando...",
+    bootstrapErrorTitle: "No se pudo cargar el formulario",
+    bootstrapErrorBody:
+      "Revisa tu conexión y vuelve a intentar. Si acabas de recargar varias veces, espera un par de minutos antes de reintentar.",
+    retry: "Reintentar",
     notAvailableTitle: "Pre-registro no disponible",
     notAvailableFallback: "Revisa que el link esté completo.",
     missingTokenInUrl: "Falta el código del pre-registro en el link.",
@@ -130,6 +134,10 @@ export const PREREG_T = {
     errorVisitType: "Enter the visit type.",
     errorFallback: "Couldn't create the pre-registration. Please try again.",
     loading: "Loading...",
+    bootstrapErrorTitle: "Couldn't load the form",
+    bootstrapErrorBody:
+      "Check your connection and try again. If you just reloaded several times, wait a couple of minutes before retrying.",
+    retry: "Retry",
     notAvailableTitle: "Pre-registration not available",
     notAvailableFallback: "Check that the link is complete.",
     missingTokenInUrl: "The pre-registration code is missing from the link.",
