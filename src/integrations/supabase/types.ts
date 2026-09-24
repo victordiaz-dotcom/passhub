@@ -438,6 +438,7 @@ export type Database = {
           custom_answers: Json | null
           division: string | null
           extended_until: string | null
+          facility: string | null
           has_vehicle: boolean | null
           host_employee_id: string | null
           id: string
@@ -464,6 +465,7 @@ export type Database = {
           custom_answers?: Json | null
           division?: string | null
           extended_until?: string | null
+          facility?: string | null
           has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string
@@ -490,6 +492,7 @@ export type Database = {
           custom_answers?: Json | null
           division?: string | null
           extended_until?: string | null
+          facility?: string | null
           has_vehicle?: boolean | null
           host_employee_id?: string | null
           id?: string

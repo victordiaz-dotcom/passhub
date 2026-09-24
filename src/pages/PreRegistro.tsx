@@ -17,6 +17,7 @@ import {
 
 type Company = { id: string; name: string };
 type Office = { id: string; name: string; country: string };
+type OfficeFacility = { id: string; name: string };
 type Division = { id: string; company_id: string; name: string };
 type VisitType = { id: string; name: string };
 type FieldConfig = {
@@ -45,6 +46,7 @@ const emptyForm = {
   vehicleModel: "",
   reason: "",
   division: "",
+  facility: "",
   visitDate: "",
   visitTime: "",
 };
@@ -73,6 +75,11 @@ export default function PreRegistro() {
   // silencio sería peor que preguntarle.
   const [officeId, setOfficeId] = useState("");
   const [officePickerOpen, setOfficePickerOpen] = useState(false);
+  // Instalaciones de la oficina elegida (ej. Madrid: Envia.com,
+  // Fulfillment) -- se piden aparte cada vez que cambia officeId, en vez de
+  // traer las de todas las oficinas de golpe. El campo "¿A qué instalación
+  // vas?" solo aparece si la oficina elegida tiene alguna registrada.
+  const [officeFacilities, setOfficeFacilities] = useState<OfficeFacility[]>([]);
   const [fields, setFields] = useState<FieldConfig[]>([]);
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({});
   const [form, setForm] = useState(emptyForm);
@@ -111,6 +118,11 @@ export default function PreRegistro() {
   const companyDivisions = divisions.filter((division) => division.company_id === form.companyId);
   const hasDivisions = companyDivisions.length > 0;
   const selectedOffice = offices.find((office) => office.id === officeId) ?? null;
+  // "¿A qué instalación vas?" solo aparece si la oficina elegida tiene
+  // instalaciones registradas (hoy Madrid: Envia.com/Fulfillment; Monterrey
+  // también tiene, así que igual aparecería ahí -- no está hardcodeado a
+  // un país en particular, sale de office_facilities).
+  const hasOfficeFacilities = officeFacilities.length > 0;
 
   // Las 5 cargas van juntas y SÍ revisan el error de cada una. Antes cada
   // una hacía `data?.x ?? []` ignorando el error: si el backend respondía
@@ -208,6 +220,27 @@ export default function PreRegistro() {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  useEffect(() => {
+    // Al cambiar de oficina se limpia la instalación elegida: las opciones
+    // de una no aplican a la otra (Local 3/Envia.com en Monterrey no
+    // significan lo mismo que Envia.com/Fulfillment en Madrid).
+    setForm((f) => ({ ...f, facility: "" }));
+
+    if (!officeId) {
+      setOfficeFacilities([]);
+      return;
+    }
+    let cancelled = false;
+    supabase.functions
+      .invoke("public-preregister", { body: { action: "officeFacilities", officeId } })
+      .then(({ data }) => {
+        if (!cancelled) setOfficeFacilities(data?.facilities ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [officeId]);
 
   // El return anticipado va DESPUÉS de todos los hooks de arriba (useState/
   // useEffect), nunca antes -- si estuviera antes, la primera vez que
@@ -523,6 +556,11 @@ export default function PreRegistro() {
       return;
     }
 
+    if (hasOfficeFacilities && !form.facility) {
+      setError(t.facilityRequired);
+      return;
+    }
+
     setSubmitting(true);
 
     const { data, error: invokeError } = await supabase.functions.invoke("public-preregister", {
@@ -685,6 +723,28 @@ export default function PreRegistro() {
                   {t.divisionPlaceholder}
                 </option>
                 {companyDivisions.map((option) => (
+                  <option key={option.id} value={option.name}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {hasOfficeFacilities && (
+            <div>
+              <label htmlFor="facility" className="mb-1 block text-sm font-medium text-ink-soft">
+                {t.facilityLabel}
+              </label>
+              <select
+                id="facility"
+                required
+                value={form.facility}
+                onChange={(e) => setForm({ ...form, facility: e.target.value })}
+                className="input-field h-auto py-2"
+              >
+                <option value="" disabled></option>
+                {officeFacilities.map((option) => (
                   <option key={option.id} value={option.name}>
                     {option.name}
                   </option>

@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
     "visitTypes",
     "fieldConfig",
     "offices",
+    "officeFacilities",
   ]);
   let rateLimitBucket: string;
   let rateLimit: number;
@@ -181,6 +182,24 @@ Deno.serve(async (req) => {
       .eq("active", true)
       .order("name");
     return jsonResponse({ offices: data ?? [] });
+  }
+
+  // Instalaciones de una oficina puntual (ej. Madrid: Envia.com,
+  // Fulfillment) -- el front la llama de nuevo cada vez que cambia la
+  // oficina elegida, así que solo se le pide una a la vez en vez de
+  // mandarlas todas de golpe.
+  if (action === "officeFacilities") {
+    const officeIdRaw = body.officeId;
+    if (typeof officeIdRaw !== "string" || !officeIdRaw) {
+      return jsonResponse({ facilities: [] });
+    }
+    const { data } = await adminClient
+      .from("office_facilities")
+      .select("id, name")
+      .eq("office_id", officeIdRaw)
+      .eq("active", true)
+      .order("name");
+    return jsonResponse({ facilities: data ?? [] });
   }
 
   if (action === "divisions") {
@@ -234,13 +253,29 @@ Deno.serve(async (req) => {
     const { data, error } = await adminClient
       .from("visit_preregistrations")
       .select(
-        "visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, custom_answers, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name), offices(name, country, address, phone)"
+        "visitor_name, visitor_company, visitor_phone, visitor_email, visit_type, has_vehicle, vehicle_plate, vehicle_color, vehicle_model, reason, facility, office_id, custom_answers, visit_date, visit_time, status, used_at, extended_until, created_at, employees(full_name), companies(name), offices(name, country, address, phone)"
       )
       .eq("access_token", token)
       .maybeSingle();
 
     if (error || !data) {
       return jsonResponse({ error: "Pre-registro no encontrado." }, 404);
+    }
+
+    // Si se eligió una instalación puntual (Envia.com / Fulfillment), su
+    // dirección es más específica que la de la oficina en general -- se
+    // manda aparte para que la confirmación muestre esa en vez de la de la
+    // oficina (que para Madrid ya ni siquiera tiene una cargada, a
+    // propósito: no hay una sola dirección de "Madrid").
+    let facilityDetails: { name: string; address: string | null; phone: string | null } | null = null;
+    if (data.facility && data.office_id) {
+      const { data: facilityRow } = await adminClient
+        .from("office_facilities")
+        .select("name, address, phone")
+        .eq("office_id", data.office_id)
+        .eq("name", data.facility)
+        .maybeSingle();
+      facilityDetails = facilityRow ?? null;
     }
 
     // Un pre-registro cancelado o vencido ya no debe ser accesible en
@@ -254,7 +289,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Este pre-registro ya venció y no está disponible." }, 410);
     }
 
-    return jsonResponse({ preregistration: data });
+    return jsonResponse({ preregistration: { ...data, facilityDetails } });
   }
 
   if (action !== "create") {
@@ -397,6 +432,28 @@ Deno.serve(async (req) => {
     officeId = office.id;
   }
 
+  // Instalación dentro de la oficina (ej. Madrid: Envia.com/Fulfillment).
+  // Solo se exige si esa oficina tiene alguna registrada -- Monterrey por
+  // ahora también tiene (Local 3/Envia.com), pero una oficina sin ninguna
+  // simplemente no pregunta nada, igual que "División" con las empresas.
+  let facility: string | null = null;
+  if (officeId) {
+    const { data: officeFacilityRows } = await adminClient
+      .from("office_facilities")
+      .select("name")
+      .eq("office_id", officeId)
+      .eq("active", true);
+
+    if (officeFacilityRows && officeFacilityRows.length > 0) {
+      const facilityRaw = body.facility;
+      const match = officeFacilityRows.find((f) => f.name === facilityRaw);
+      if (typeof facilityRaw !== "string" || !facilityRaw || !match) {
+        return jsonResponse({ error: "Selecciona a qué instalación vas." }, 400);
+      }
+      facility = match.name;
+    }
+  }
+
   // "A quién visitas" ya no se pide en el formulario público (exponía la
   // lista completa de colaboradores sin autenticación): se elige en
   // recepción al hacer el check-in real, así que aquí es opcional.
@@ -422,6 +479,7 @@ Deno.serve(async (req) => {
     .insert({
       company_id: companyId,
       office_id: officeId,
+      facility,
       visitor_name: visitorName,
       visitor_company: typeof visitorCompany === "string" && visitorCompany ? visitorCompany : null,
       visitor_phone: typeof visitorPhone === "string" && visitorPhone ? visitorPhone : null,

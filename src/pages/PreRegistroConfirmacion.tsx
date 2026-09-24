@@ -21,6 +21,8 @@ type Preregistration = {
   vehicle_color: string | null;
   vehicle_model: string | null;
   reason: string | null;
+  facility: string | null;
+  facilityDetails: { name: string; address: string | null; phone: string | null } | null;
   custom_answers: Record<string, { label_es: string | null; label_en: string | null; value: string }> | null;
   visit_date: string;
   visit_time: string | null;
@@ -337,19 +339,32 @@ export default function PreRegistroConfirmacion() {
 
         <p className="mt-6 text-center text-xs text-ink-soft">{t.saveLinkNote}</p>
 
-        {/* Datos de contacto de la oficina a la que va ESTE pre-registro.
-            Antes estaban fijos en el código con la dirección de Monterrey,
-            así que un visitante de Madrid recibía la dirección equivocada.
-            Si la oficina todavía no tiene dirección cargada (o el
-            pre-registro es viejo y no trae oficina), no se muestra nada en
-            vez de mostrar una dirección que no corresponde. */}
-        {(details.offices?.address || details.offices?.phone) && (
-          <p className="mt-4 border-t border-line pt-4 text-center text-xs text-ink-soft">
-            {details.offices.address}
-            {details.offices.address && details.offices.phone && <br />}
-            {details.offices.phone && `${t.phoneLabel}: ${details.offices.phone}`}
-          </p>
-        )}
+        {/* Datos de contacto de a dónde va ESTE pre-registro. Antes estaban
+            fijos en el código con la dirección de Monterrey, así que un
+            visitante de Madrid recibía la dirección equivocada.
+            facilityDetails (la instalación puntual, ej. Envia.com dentro de
+            Madrid) es más específica que la dirección general de la
+            oficina, así que se prefiere cuando existe. Si no hay ninguna
+            dirección cargada, no se muestra nada en vez de una que no
+            corresponde. */}
+        {(() => {
+          const address = details.facilityDetails?.address ?? details.offices?.address;
+          const phone = details.facilityDetails?.phone ?? details.offices?.phone;
+          if (!address && !phone) return null;
+          return (
+            <p className="mt-4 border-t border-line pt-4 text-center text-xs text-ink-soft">
+              {details.facilityDetails?.name && (
+                <>
+                  <span className="font-medium text-ink">{details.facilityDetails.name}</span>
+                  <br />
+                </>
+              )}
+              {address}
+              {address && phone && <br />}
+              {phone && `${t.phoneLabel}: ${phone}`}
+            </p>
+          );
+        })()}
       </div>
 
       {zoomedSrc && (
