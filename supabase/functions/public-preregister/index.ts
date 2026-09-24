@@ -12,9 +12,26 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:5173",
 ]);
 
+// En passhub-dev (el proyecto de pruebas) esta lista fija no alcanza: se
+// comparte con testers externos por un puerto abierto o un túnel cuya URL
+// no es localhost ni el dominio de producción, así que su origen nunca
+// coincide y el navegador bloqueaba la respuesta (síntoma real: un
+// superadmin de prueba no podía crear cuentas, aunque su rol estuviera
+// bien, porque la función nunca llegaba a responderle). Se detecta el
+// proyecto por su propia URL (no por config manual) para que producción
+// siga exactamente igual de estricta; la seguridad real de esta función
+// sigue siendo el JWT + el chequeo de rol de abajo, no el origen.
+const DEV_PROJECT_URL = "https://fzzdpktihplgzskvpxuq.supabase.co";
+const IS_DEV_PROJECT = Deno.env.get("SUPABASE_URL") === DEV_PROJECT_URL;
+
 function corsHeadersFor(origin: string | null) {
+  const allowOrigin = IS_DEV_PROJECT
+    ? origin ?? "*"
+    : origin && ALLOWED_ORIGINS.has(origin)
+      ? origin
+      : "https://passhub.tendencys.com";
   return {
-    "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://passhub.tendencys.com",
+    "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
