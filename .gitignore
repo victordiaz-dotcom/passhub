@@ -10,3 +10,4 @@ backups/
 .claude/
 .mcp.json
 .codex/
+*.tar.gz
