@@ -17,7 +17,7 @@ type Employee = Pick<Tables<"employees">, "id" | "full_name">;
 type Company = Pick<Tables<"companies">, "id" | "name">;
 type Division = Pick<Tables<"divisions">, "id" | "name">;
 type VisitType = Pick<Tables<"visit_types">, "id" | "name">;
-type OfficeFacility = { id: string; name: string; label: string };
+type OfficeFacility = { id: string; name: string; label: string; officeId: string };
 
 const OTROS_SENTINEL = "__otros__";
 type InsideVisit = Pick<
@@ -206,7 +206,9 @@ export default function CheckIn() {
         .eq("office_id", officeId)
         .eq("active", true)
         .order("name")
-        .then(({ data }) => setOfficeFacilities((data ?? []).map((f) => ({ ...f, label: f.name }))));
+        .then(({ data }) =>
+          setOfficeFacilities((data ?? []).map((f) => ({ ...f, label: f.name, officeId })))
+        );
       return;
     }
 
@@ -260,6 +262,7 @@ export default function CheckIn() {
           id: f.id,
           name: f.name,
           label: distinctOffices.size > 1 ? `${f.name} (${f.offices?.name ?? "?"})` : f.name,
+          officeId: f.office_id,
         }))
       );
     });
@@ -608,6 +611,13 @@ export default function CheckIn() {
         // (PostgREST rechaza la fila entera si nombra una columna que no
         // existe en el esquema).
         ...(hasFacilities ? { facility: facility || null } : {}),
+        // "Envia.com" existe tanto en Monterrey como en Madrid -- sin
+        // guardar la oficina, Historial no podría distinguir de cuál es un
+        // visitante cuando superadmin ve todo mezclado. Prioriza la oficina
+        // fija de la cuenta (siempre correcta si existe); si la cuenta no
+        // tiene una (superadmin/admin sin restricción), usa la de la
+        // instalación elegida.
+        office_id: profile?.office_id ?? officeFacilities.find((f) => f.name === facility)?.officeId ?? null,
         visitor_photo_path: visitorPhotoPath,
         id_photo_path: idPhotoPath,
         created_by: session.user.id,

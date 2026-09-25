@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { checkoutVisit } from "@/lib/checkout";
 import { flagVisitor } from "@/lib/flaggedVisitors";
 import { TableSkeletonRows } from "@/components/Skeleton";
+import { COUNTRY_FLAGS } from "@/lib/countryFlags";
 import type { Tables } from "@/integrations/supabase/types";
 
 type VisitRow = Pick<
@@ -19,8 +20,10 @@ type VisitRow = Pick<
   | "visit_type"
   | "created_by_name"
   | "checked_out_by_name"
+  | "facility"
 > & {
   employees: Pick<Tables<"employees">, "full_name"> | null;
+  offices: Pick<Tables<"offices">, "name" | "country"> | null;
 };
 
 type PreregRow = Pick<
@@ -144,7 +147,7 @@ export default function Historial() {
     let query = supabase
       .from("visits")
       .select(
-        "id, folio, visitor_name, check_in_at, check_out_at, status, preregistration_id, visit_type, created_by_name, checked_out_by_name, employees(full_name)"
+        "id, folio, visitor_name, check_in_at, check_out_at, status, preregistration_id, visit_type, created_by_name, checked_out_by_name, facility, employees(full_name), offices(name, country)"
       )
       .order("check_in_at", { ascending: false });
 
@@ -526,6 +529,7 @@ export default function Historial() {
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Folio</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Visitante</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">A quién visita</th>
+                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Instalación</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Tipo</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Registró</th>
                 <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Pre-registro</th>
@@ -537,10 +541,10 @@ export default function Historial() {
               </tr>
             </thead>
             <tbody>
-              {loading && <TableSkeletonRows rows={5} columns={11} />}
+              {loading && <TableSkeletonRows rows={5} columns={12} />}
               {!loading && visits.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-6 text-center text-ink-soft">
+                  <td colSpan={12} className="px-4 py-6 text-center text-ink-soft">
                     No hay visitas que coincidan con estos filtros.
                   </td>
                 </tr>
@@ -550,6 +554,18 @@ export default function Historial() {
                   <td className="px-4 py-3 font-medium text-ink">{visit.folio}</td>
                   <td className="px-4 py-3 text-ink">{visit.visitor_name}</td>
                   <td className="px-4 py-3 text-ink-soft">{visit.employees?.full_name ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-soft">
+                    {visit.facility ? (
+                      <>
+                        {visit.offices?.country && (
+                          <span className="mr-1">{COUNTRY_FLAGS[visit.offices.country] ?? ""}</span>
+                        )}
+                        {visit.facility}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-ink-soft">{visit.visit_type ?? "—"}</td>
                   <td className="px-4 py-3 text-ink-soft">{visit.created_by_name ?? "—"}</td>
                   <td className="px-4 py-3">

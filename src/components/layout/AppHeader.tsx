@@ -6,6 +6,7 @@ import { APP_VERSION } from "@/lib/version";
 import { ROLE_LABELS } from "@/lib/roles";
 import { COUNTRY_FLAGS } from "@/lib/countryFlags";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { copyToClipboard } from "@/lib/clipboard";
 
 // font-medium siempre presente (no solo en isActive): si el peso de la
 // fuente cambia entre estados, cada link cambia de ancho y empuja a los
@@ -26,6 +27,23 @@ export function AppHeader() {
   // porque México tiene dos oficinas -- con solo la bandera no se distingue
   // CDMX de Monterrey.
   const [office, setOffice] = useState<{ name: string; country: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Copiar el link de pre-registro debe mandar a la oficina de quien lo
+  // copia (/mx, /es) en vez del genérico /pre-register: ese depende de
+  // detectar el país por la IP del VISITANTE, que no siempre coincide con
+  // la oficina real a la que va (puede llenar el formulario desde otro
+  // lado, con VPN, etc.). Quien copia el link sí sabe con certeza de qué
+  // oficina es.
+  const preregPath = office?.country === "ES" ? "/es" : office?.country === "MX" ? "/mx" : "/pre-register";
+
+  async function handleCopyPreregLink() {
+    const ok = await copyToClipboard(`${window.location.origin}${preregPath}`);
+    if (ok) {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  }
 
   useEffect(() => {
     const officeId = profile?.office_id;
@@ -75,6 +93,13 @@ export function AppHeader() {
             {firstName}
             {roleLabel && <span className="text-white/50"> · {roleLabel}</span>}
           </span>
+          <button
+            type="button"
+            onClick={handleCopyPreregLink}
+            className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white hover:bg-white/20"
+          >
+            {linkCopied ? "¡Copiado!" : "Copiar liga de pre-registro"}
+          </button>
           <button
             type="button"
             onClick={() => signOut()}

@@ -573,6 +573,7 @@ export type Database = {
           host_employee_id: string | null
           id: string
           id_photo_path: string
+          office_id: string | null
           preregistration_id: string | null
           reason: string | null
           status: Database["public"]["Enums"]["visit_status"]
@@ -603,6 +604,7 @@ export type Database = {
           host_employee_id?: string | null
           id?: string
           id_photo_path: string
+          office_id?: string | null
           preregistration_id?: string | null
           reason?: string | null
           status?: Database["public"]["Enums"]["visit_status"]
@@ -633,6 +635,7 @@ export type Database = {
           host_employee_id?: string | null
           id?: string
           id_photo_path?: string
+          office_id?: string | null
           preregistration_id?: string | null
           reason?: string | null
           status?: Database["public"]["Enums"]["visit_status"]
@@ -674,6 +677,13 @@ export type Database = {
             columns: ["host_employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
             referencedColumns: ["id"]
           },
           {
