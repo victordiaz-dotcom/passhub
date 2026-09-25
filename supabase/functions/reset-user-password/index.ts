@@ -184,6 +184,21 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Solo un administrador puede restablecer contraseñas." }, 403);
   }
 
+  // Esta consulta (y las de rol de arriba) usan la service role, que
+  // ignora RLS -- a diferencia de has_role() (que sí exige profiles.active),
+  // así que sin este chequeo una cuenta desactivada con una sesión todavía
+  // válida podía seguir usando esta función aunque ya no pudiera tocar
+  // ninguna tabla directamente.
+  const { data: callerProfile } = await adminClient
+    .from("profiles")
+    .select("active, office_id")
+    .eq("id", caller.id)
+    .single();
+
+  if (!callerProfile?.active) {
+    return jsonResponse({ error: "Tu cuenta está desactivada." }, 403);
+  }
+
   let rawBody: string;
   try {
     rawBody = await readBodyWithLimit(req, MAX_BODY_BYTES);
@@ -220,6 +235,21 @@ Deno.serve(async (req) => {
       { error: "Solo un super admin puede restablecer contraseñas de admin o super admin." },
       403
     );
+  }
+
+  // Mismo criterio que create-user: un admin normal solo puede actuar sobre
+  // cuentas de su propia oficina. Faltaba aquí -- un admin de una oficina
+  // podía restablecer la contraseña de cualquier cuenta de OTRA oficina.
+  if (!callerIsSuperadmin && callerProfile?.office_id) {
+    const { data: targetProfile } = await adminClient
+      .from("profiles")
+      .select("office_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!targetProfile || targetProfile.office_id !== callerProfile.office_id) {
+      return jsonResponse({ error: "Solo puedes actuar sobre cuentas de tu propia oficina." }, 403);
+    }
   }
 
   // El admin puede escribir la contraseña él mismo o dejar que se genere

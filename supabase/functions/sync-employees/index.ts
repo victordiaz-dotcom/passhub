@@ -115,6 +115,21 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Solo un administrador puede sincronizar empleados." }, 403);
   }
 
+  // Esta consulta (y la de rol de arriba) usan la service role, que ignora
+  // RLS -- a diferencia de has_role() (que sí exige profiles.active), así
+  // que sin este chequeo una cuenta desactivada con una sesión todavía
+  // válida podía seguir usando esta función aunque ya no pudiera tocar
+  // ninguna tabla directamente.
+  const { data: callerProfile } = await adminClient
+    .from("profiles")
+    .select("active")
+    .eq("id", caller.id)
+    .single();
+
+  if (!callerProfile?.active) {
+    return jsonResponse({ error: "Tu cuenta está desactivada." }, 403);
+  }
+
   const { data: companies } = await adminClient.from("companies").select("id, name");
   if (!companies || companies.length === 0) {
     return jsonResponse({ error: "No hay empresas registradas en el sistema." }, 500);

@@ -500,27 +500,31 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "La empresa no existe." }, 400);
   }
 
-  // Oficina destino: la manda el front ya resuelta (detectada por zona
-  // horaria y confirmada por el visitante). Se valida contra la tabla en
-  // vez de confiar en el cliente. Si no viene, queda null -- los
-  // pre-registros viejos tampoco la tienen y deben seguir funcionando.
+  // Oficina destino: la manda el front ya resuelta (detectada por IP/link de
+  // país y confirmada por el visitante si hace falta). Se valida contra la
+  // tabla en vez de confiar en el cliente. Obligatoria en solicitudes
+  // nuevas -- hallazgo de una revisión externa: aceptar que se omitiera y
+  // guardar null dejaba esas filas visibles para CUALQUIER oficina (mismo
+  // criterio que "sin oficina" en visits/prereg_select para filas viejas,
+  // pero eso es para no romper registros de ANTES de que esta columna
+  // existiera, no una puerta para que solicitudes nuevas la salten).
   const officeIdRaw = body.officeId;
-  let officeId: string | null = null;
-  let officeCountry: string | null = null;
-  if (typeof officeIdRaw === "string" && officeIdRaw) {
-    const { data: office } = await adminClient
-      .from("offices")
-      .select("id, country")
-      .eq("id", officeIdRaw)
-      .eq("active", true)
-      .maybeSingle();
-
-    if (!office) {
-      return jsonResponse({ error: "La oficina no existe." }, 400);
-    }
-    officeId = office.id;
-    officeCountry = office.country;
+  if (typeof officeIdRaw !== "string" || !officeIdRaw) {
+    return jsonResponse({ error: "Falta la oficina." }, 400);
   }
+
+  const { data: office } = await adminClient
+    .from("offices")
+    .select("id, country")
+    .eq("id", officeIdRaw)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (!office) {
+    return jsonResponse({ error: "La oficina no existe." }, 400);
+  }
+  const officeId: string = office.id;
+  const officeCountry: string | null = office.country;
 
   // Instalación dentro de la oficina (ej. Madrid: Envia.com/Fulfillment).
   // Confirmado explícitamente: en el pre-registro público esto SOLO aplica

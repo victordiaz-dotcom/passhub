@@ -194,9 +194,18 @@ Deno.serve(async (req) => {
   // puede crear cuentas en cualquiera. superadmin nunca se restringe.
   const { data: callerProfile } = await adminClient
     .from("profiles")
-    .select("company_id, office_id")
+    .select("active, company_id, office_id")
     .eq("id", caller.id)
     .single();
+
+  // Esta consulta (y la de rol de arriba) usan la service role, que ignora
+  // RLS -- a diferencia de has_role() (que sí exige profiles.active), así
+  // que sin este chequeo una cuenta desactivada con una sesión todavía
+  // válida podía seguir usando esta función aunque ya no pudiera tocar
+  // ninguna tabla directamente.
+  if (!callerProfile?.active) {
+    return jsonResponse({ error: "Tu cuenta está desactivada." }, 403);
+  }
 
   let body: {
     email?: string;
