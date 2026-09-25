@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { APP_VERSION } from "@/lib/version";
 import { normalizeVisitorName } from "@/lib/flaggedVisitors";
 import { COUNTRY_FLAGS } from "@/lib/countryFlags";
+import { Skeleton } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
 type InsideVisit = Pick<
@@ -207,6 +208,17 @@ export default function Guardia() {
         )}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {loading &&
+            Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex flex-col items-center rounded-xl border border-[#b8b8b8] bg-white p-3"
+              >
+                <Skeleton className="mb-2 h-24 w-24 rounded-full" />
+                <Skeleton className="mb-1 h-4 w-20" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+            ))}
           {visits.map((visit) => (
             <button
               key={visit.id}

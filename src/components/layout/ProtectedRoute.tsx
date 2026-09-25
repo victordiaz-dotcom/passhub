@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { PageSkeleton } from "@/components/Skeleton";
 
 // TODO: sigue el patrón de AssetFlow: ProtectedRoute valida sesión activa,
 // y opcionalmente una lista de roles permitidos para esa ruta.
@@ -12,7 +13,7 @@ export function ProtectedRoute({
 }) {
   const { session, profile, roles, loading, signOut } = useAuth();
 
-  if (loading) return null; // TODO: spinner
+  if (loading) return <PageSkeleton />;
 
   if (!session) return <Navigate to="/login" replace />;
 

@@ -1,16 +1,20 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { PageSkeleton } from "@/components/Skeleton";
 
 export default function ChangePassword() {
   const { session, profile, isAdmin, loading } = useAuth();
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  // No controlados (ref, no useState+value): ver nota en Login.tsx -- un
+  // input controlado refleja cada tecla en el atributo "value" del DOM,
+  // visible en texto plano con solo abrir el inspector.
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (loading) return null;
+  if (loading) return <PageSkeleton />;
   if (!session) return <Navigate to="/login" replace />;
   if (profile && !profile.must_change_password) {
     return <Navigate to={isAdmin ? "/admin" : "/"} replace />;
@@ -25,13 +29,13 @@ export default function ChangePassword() {
     // ningún login futuro —ni siquiera escrito perfecto— volvería a
     // coincidir. Mismo criterio que ya aplican create-user/reset-user-password
     // del lado del servidor para la contraseña que escribe un admin.
-    const trimmedPassword = password.trim();
+    const trimmedPassword = (passwordRef.current?.value ?? "").trim();
 
     if (trimmedPassword.length < 8) {
       setError("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
-    if (trimmedPassword !== confirmPassword.trim()) {
+    if (trimmedPassword !== (confirmPasswordRef.current?.value ?? "").trim()) {
       setError("Las contraseñas no coinciden.");
       return;
     }
@@ -86,8 +90,8 @@ export default function ChangePassword() {
               required
               minLength={8}
               autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              ref={passwordRef}
+              defaultValue=""
               className="input-field h-auto py-2.5"
             />
           </div>
@@ -102,8 +106,8 @@ export default function ChangePassword() {
               required
               minLength={8}
               autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              ref={confirmPasswordRef}
+              defaultValue=""
               className="input-field h-auto py-2.5"
             />
           </div>

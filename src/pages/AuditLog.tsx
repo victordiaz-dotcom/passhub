@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ROLE_LABELS } from "@/lib/roles";
+import { TableSkeletonRows } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
 type AuditRow = Tables<"audit_logs">;
@@ -361,6 +362,7 @@ export default function AuditLog() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={5} />}
             {!loading && visibleRows.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-ink-soft">

@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { checkoutVisit } from "@/lib/checkout";
 import { flagVisitor } from "@/lib/flaggedVisitors";
+import { TableSkeletonRows } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
 type VisitRow = Pick<
@@ -493,6 +494,7 @@ export default function Historial() {
               </tr>
             </thead>
             <tbody>
+              {frequencyLoading && <TableSkeletonRows rows={5} columns={3} />}
               {!frequencyLoading && frequency.length === 0 && (
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-ink-soft">
@@ -535,6 +537,7 @@ export default function Historial() {
               </tr>
             </thead>
             <tbody>
+              {loading && <TableSkeletonRows rows={5} columns={11} />}
               {!loading && visits.length === 0 && (
                 <tr>
                   <td colSpan={11} className="px-4 py-6 text-center text-ink-soft">
@@ -609,6 +612,7 @@ export default function Historial() {
               </tr>
             </thead>
             <tbody>
+              {preregLoading && <TableSkeletonRows rows={5} columns={8} />}
               {!preregLoading && preregs.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-6 text-center text-ink-soft">

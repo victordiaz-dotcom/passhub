@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { TableSkeletonRows } from "@/components/Skeleton";
 import { copyToClipboard } from "@/lib/clipboard";
 import { COUNTRY_FLAGS, COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
 import type { Tables } from "@/integrations/supabase/types";
@@ -677,6 +678,7 @@ export default function Users() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={8} />}
             {!loading && accounts.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-ink-soft">

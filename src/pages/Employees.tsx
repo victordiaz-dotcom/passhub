@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
+import { TableSkeletonRows } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Tables<"employees"> & { companies: Pick<Tables<"companies">, "name"> | null };
@@ -88,6 +89,7 @@ export default function Employees() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={3} />}
             {!loading && employees.length === 0 && (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-ink-soft">

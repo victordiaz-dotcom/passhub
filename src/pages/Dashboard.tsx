@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AnalyticsSection } from "@/components/analytics/AnalyticsSection";
 import { checkoutVisit } from "@/lib/checkout";
 import { flagVisitor } from "@/lib/flaggedVisitors";
+import { TableSkeletonRows } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
 type VisitRow = Pick<
@@ -216,6 +217,7 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={9} />}
             {!loading && visits.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-6 text-center text-ink-soft">

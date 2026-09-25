@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -7,7 +7,12 @@ import { APP_VERSION } from "@/lib/version";
 export default function Login() {
   const { session, loading: authLoading } = useAuth();
   const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
+  // No controlado (ref, no useState+value): un input controlado refleja
+  // cada tecla también en el atributo "value" del DOM, visible en texto
+  // plano con solo abrir el inspector -- sin estado de React detrás, el
+  // valor solo vive en el DOM nativo del input, igual que en cualquier
+  // formulario no armado con React.
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +29,7 @@ export default function Login() {
     // lo insertan ahí con mucha más frecuencia que un teclado físico — sin
     // este trim, eso bastaba para que un login por lo demás correcto
     // fallara siempre, solo desde el celular.
-    const trimmedPassword = password.trim();
+    const trimmedPassword = (passwordRef.current?.value ?? "").trim();
 
     if (trimmed.includes("@")) {
       const { error } = await supabase.auth.signInWithPassword({ email: trimmed, password: trimmedPassword });
@@ -95,8 +100,8 @@ export default function Login() {
               type="password"
               required
               autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              ref={passwordRef}
+              defaultValue=""
               className="input-field h-auto py-2.5"
             />
           </div>

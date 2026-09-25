@@ -8,6 +8,7 @@ import { PhotoUploadField } from "@/components/PhotoUploadField";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { checkoutVisit } from "@/lib/checkout";
+import { TableSkeletonRows } from "@/components/Skeleton";
 import { copyToClipboard } from "@/lib/clipboard";
 import { findFlaggedVisitor, flagVisitor, type FlaggedVisitorMatch } from "@/lib/flaggedVisitors";
 import type { Tables } from "@/integrations/supabase/types";
@@ -710,6 +711,7 @@ export default function CheckIn() {
                 </tr>
               </thead>
               <tbody>
+                {insideLoading && <TableSkeletonRows rows={5} columns={6} />}
                 {!insideLoading && insideVisits.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-6 text-center text-ink-soft">

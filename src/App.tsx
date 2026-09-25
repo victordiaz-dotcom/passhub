@@ -3,6 +3,7 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import { IdleLogout } from "@/components/IdleLogout";
 import { ThemeInitializer } from "@/components/ThemeInitializer";
+import { PageSkeleton } from "@/components/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
@@ -35,7 +36,7 @@ function RedirectOldPreregConfirmacion() {
 // aunque la cuenta sea de guardia.
 function HomeRoute() {
   const { isGuardia, isAdmin, isRecepcion, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <PageSkeleton />;
   if (isGuardia && !isAdmin && !isRecepcion) return <Guardia />;
   return (
     <Layout>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { copyToClipboard } from "@/lib/clipboard";
+import { TableSkeletonRows } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Company = Tables<"companies">;
@@ -172,6 +173,7 @@ function CompaniesTab() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={3} />}
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-ink-soft">
@@ -301,6 +303,7 @@ function DivisionsTab() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={4} />}
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-ink-soft">
@@ -401,6 +404,7 @@ function VisitTypesTab() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={3} />}
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-ink-soft">
@@ -586,6 +590,7 @@ function PreregFieldsTab() {
             </tr>
           </thead>
           <tbody>
+            {loading && <TableSkeletonRows rows={5} columns={6} />}
             {!loading && sortedRows.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-ink-soft">
