@@ -12,4 +12,14 @@ if (!supabaseUrl || !supabaseKey) {
 
 // La publishable/anon key es segura de exponer en el cliente: el acceso real
 // a los datos lo controla Row Level Security (RLS) en Postgres, no esta key.
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+  auth: {
+    // sessionStorage en vez del localStorage por defecto: la sesión se borra
+    // sola al cerrar la pestaña/el navegador, para cualquier rol (recepción,
+    // guardia, admin) -- en vez de quedar guardada indefinidamente en el
+    // equipo. No afecta el cierre por inactividad (IdleLogout.tsx), que
+    // sigue aplicando solo a admin/superadmin mientras la sesión sigue
+    // abierta.
+    storage: window.sessionStorage,
+  },
+});

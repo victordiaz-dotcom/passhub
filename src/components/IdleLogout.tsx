@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-const IDLE_LIMIT_MS = 30 * 60 * 1000;
+const IDLE_LIMIT_MS = 10 * 60 * 1000;
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "wheel"];
 
 // Solo admin (isAdmin ya es true para super admin también, porque carga
