@@ -37,6 +37,40 @@ function corsHeadersFor(origin: string | null) {
   };
 }
 
+const MAX_BODY_BYTES = 100_000;
+
+// Mirar solo el header content-length no protege nada: con
+// "Transfer-Encoding: chunked" un cliente lo puede omitir por completo (o
+// mentir), y aun así Deno intenta leer el body entero sin límite propio --
+// probado en vivo, un body de unos MB sin content-length dejó una función
+// pública de este mismo proyecto colgada más de dos minutos antes de que la
+// plataforma la matara por su cuenta. Este helper sí impone un límite real
+// cortando la lectura del stream apenas se pasa del máximo, sin importar lo
+// que el cliente haya declarado.
+async function readBodyWithLimit(req: Request, maxBytes: number): Promise<string> {
+  const reader = req.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error("BODY_TOO_LARGE");
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buf.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(buf);
+}
+
 Deno.serve(async (req) => {
   // Cerrado sobre esta constante (no un corsHeaders global mutable): Deno
   // puede procesar requests concurrentes en el mismo aislado, y una
@@ -56,10 +90,6 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") {
     return jsonResponse({ error: "Método no permitido." }, 405);
-  }
-
-  if (Number(req.headers.get("content-length") ?? 0) > 100_000) {
-    return jsonResponse({ error: "Solicitud demasiado grande." }, 413);
   }
 
   const authHeader = req.headers.get("Authorization");
@@ -99,9 +129,16 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Solo un super admin puede activar o desactivar cuentas." }, 403);
   }
 
+  let rawBody: string;
+  try {
+    rawBody = await readBodyWithLimit(req, MAX_BODY_BYTES);
+  } catch {
+    return jsonResponse({ error: "Solicitud demasiado grande." }, 413);
+  }
+
   let body: { userId?: string; active?: boolean };
   try {
-    body = await req.json();
+    body = JSON.parse(rawBody);
   } catch {
     return jsonResponse({ error: "Cuerpo de la solicitud inválido." }, 400);
   }
