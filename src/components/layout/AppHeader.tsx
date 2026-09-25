@@ -27,6 +27,11 @@ export function AppHeader() {
   // porque México tiene dos oficinas -- con solo la bandera no se distingue
   // CDMX de Monterrey.
   const [office, setOffice] = useState<{ name: string; country: string } | null>(null);
+  // Sin esto, un clic justo después de cargar la página (antes de que
+  // resuelva el fetch de abajo) copiaba el link genérico /pre-register en
+  // vez de /es o /mx -- exactamente el caso que este botón existe para
+  // evitar, silencioso porque "office" sigue siendo null mientras carga.
+  const [officeReady, setOfficeReady] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
   // Copiar el link de pre-registro debe mandar a la oficina de quien lo
@@ -46,9 +51,11 @@ export function AppHeader() {
   }
 
   useEffect(() => {
+    setOfficeReady(false);
     const officeId = profile?.office_id;
     if (!officeId) {
       setOffice(null);
+      setOfficeReady(true);
       return;
     }
     let cancelled = false;
@@ -58,7 +65,10 @@ export function AppHeader() {
       .eq("id", officeId)
       .single()
       .then(({ data }) => {
-        if (!cancelled) setOffice(data ?? null);
+        if (!cancelled) {
+          setOffice(data ?? null);
+          setOfficeReady(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -96,7 +106,8 @@ export function AppHeader() {
           <button
             type="button"
             onClick={handleCopyPreregLink}
-            className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white hover:bg-white/20"
+            disabled={!officeReady}
+            className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white hover:bg-white/20 disabled:opacity-50"
           >
             {linkCopied ? "¡Copiado!" : "Copiar liga de pre-registro"}
           </button>

@@ -616,7 +616,11 @@ export default function CheckIn() {
         // visitante cuando superadmin ve todo mezclado. Prioriza la oficina
         // fija de la cuenta (siempre correcta si existe); si la cuenta no
         // tiene una (superadmin/admin sin restricción), usa la de la
-        // instalación elegida.
+        // instalación elegida. El find() empareja por NOMBRE de
+        // instalación -- hoy es seguro porque cada país tiene una sola
+        // oficina activa, pero si algún día un país tiene dos oficinas con
+        // una instalación del mismo nombre, esto tomaría la primera que
+        // encuentre en vez de la que realmente eligió el visitante.
         office_id: profile?.office_id ?? officeFacilities.find((f) => f.name === facility)?.officeId ?? null,
         visitor_photo_path: visitorPhotoPath,
         id_photo_path: idPhotoPath,
