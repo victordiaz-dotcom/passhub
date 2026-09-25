@@ -190,7 +190,15 @@ export default function PreRegistro() {
       const activeOffices: Office[] = officesRes.data?.offices ?? [];
       setOffices(activeOffices);
 
-      const requested = new URLSearchParams(window.location.search).get("oficina")?.toLowerCase();
+      // Un colaborador sabe de qué país es -- a diferencia de la IP del
+      // visitante, que puede ser cualquier cosa si llena el formulario
+      // desde su casa/hotel antes de viajar, o si trae VPN a otro país. Por
+      // eso el link explícito por país (/mx, /es) manda sobre la detección
+      // por IP, que queda solo como respaldo del link genérico /pre-register.
+      const pathHint = window.location.pathname.split("/").filter(Boolean).pop()?.toLowerCase();
+      const requested =
+        new URLSearchParams(window.location.search).get("oficina")?.toLowerCase() ??
+        (pathHint === "mx" || pathHint === "es" ? pathHint : undefined);
       const fromUrl = requested
         ? activeOffices.find(
             (office) =>

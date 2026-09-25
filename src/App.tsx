@@ -54,6 +54,12 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/pre-register" element={<PreRegistro />} />
+        {/* Links fijos por país para que cada colaborador comparta el que le
+            corresponde (él sabe su país; la IP del visitante no siempre lo
+            refleja) -- misma pantalla que /pre-register, solo fuerza la
+            oficina en vez de intentar adivinarla. */}
+        <Route path="/mx" element={<PreRegistro />} />
+        <Route path="/es" element={<PreRegistro />} />
         <Route path="/pre-register/confirmation/:token" element={<PreRegistroConfirmacion />} />
         {/* Rutas viejas en español -- redirect por si ya se compartieron
             ligas de pre-registro antes de este cambio de nombre. */}
