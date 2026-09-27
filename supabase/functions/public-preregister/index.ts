@@ -138,6 +138,11 @@ async function getClientCountry(req: Request): Promise<string | null> {
 // pública sin JWT. Ventana fija por (bucket, identifier) sobre
 // public.edge_rate_limits — se autolimpia en cada chequeo, así que no
 // necesita ningún cron aparte.
+// Atómico (función SECURITY DEFINER con advisory lock, ver migración 0100)
+// -- el patrón anterior (SELECT count, luego INSERT, dos llamadas
+// separadas) no era atómico: varias requests concurrentes leían el mismo
+// conteo antes de que cualquiera insertara su fila, así que un atacante
+// con suficientes requests en paralelo excedía el límite arbitrariamente.
 async function checkRateLimit(
   adminClient: ReturnType<typeof createClient>,
   bucket: string,
@@ -145,24 +150,13 @@ async function checkRateLimit(
   limit: number,
   windowMinutes: number
 ): Promise<boolean> {
-  const windowStart = new Date(Date.now() - windowMinutes * 60_000).toISOString();
-  await adminClient
-    .from("edge_rate_limits")
-    .delete()
-    .eq("bucket", bucket)
-    .eq("identifier", identifier)
-    .lt("created_at", windowStart);
-
-  const { count } = await adminClient
-    .from("edge_rate_limits")
-    .select("id", { count: "exact", head: true })
-    .eq("bucket", bucket)
-    .eq("identifier", identifier);
-
-  if ((count ?? 0) >= limit) return false;
-
-  await adminClient.from("edge_rate_limits").insert({ bucket, identifier });
-  return true;
+  const { data } = await adminClient.rpc("rate_limit_try_reserve", {
+    p_bucket: bucket,
+    p_identifier: identifier,
+    p_window_minutes: windowMinutes,
+    p_limit: limit,
+  });
+  return data === true;
 }
 
 function addDaysIso(value: string, days: number) {

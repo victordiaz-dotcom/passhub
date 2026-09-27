@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
 
   const callerRoles = (callerRoleRows ?? []).map((r) => r.role);
   const callerIsAdmin = callerRoles.includes("admin") || callerRoles.includes("superadmin");
+  const callerIsSuperadmin = callerRoles.includes("superadmin");
 
   if (!callerIsAdmin) {
     return jsonResponse({ error: "Solo un administrador puede sincronizar empleados." }, 403);
@@ -122,13 +123,21 @@ Deno.serve(async (req) => {
   // ninguna tabla directamente.
   const { data: callerProfile } = await adminClient
     .from("profiles")
-    .select("active")
+    .select("active, office_id")
     .eq("id", caller.id)
     .single();
 
   if (!callerProfile?.active) {
     return jsonResponse({ error: "Tu cuenta está desactivada." }, 403);
   }
+
+  // Mismo criterio que create-user/reset-user-password/update-user-email y
+  // que las políticas RLS de employees (migración 0091): un admin
+  // no-superadmin con oficina asignada solo puede tocar registros de esa
+  // misma oficina -- sin este filtro, sync-employees (que usa la service
+  // role y por eso ignora esas políticas) le permitía sobrescribir el
+  // directorio de CUALQUIER oficina/país, no solo la propia.
+  const callerOfficeId = callerIsSuperadmin ? null : callerProfile.office_id;
 
   const { data: companies } = await adminClient.from("companies").select("id, name");
   if (!companies || companies.length === 0) {
@@ -300,10 +309,24 @@ Deno.serve(async (req) => {
     return jsonResponse({ synced: 0, warning: "El directorio de Slack no devolvió personas activas válidas." });
   }
 
+  // Filtrado por oficina ANTES de armar las filas del upsert (no después):
+  // un admin de una sola oficina nunca debe siquiera calcular filas para
+  // otro país, mucho menos escribirlas.
+  const scopedUsers = callerOfficeId
+    ? validUsers.filter((u) => resolveOfficeId(u.country) === callerOfficeId)
+    : validUsers;
+
+  if (scopedUsers.length === 0) {
+    return jsonResponse({
+      synced: 0,
+      warning: "El directorio de Slack no tiene personas de tu propia oficina para sincronizar.",
+    });
+  }
+
   // Diagnóstico: qué valores trae "organization" en el directorio, para
   // poder afinar el mapeo si algún nombre de empresa no calza.
   const orgValues = new Set(
-    validUsers.map((u) => (typeof u.organization === "string" ? u.organization : "(vacío)"))
+    scopedUsers.map((u) => (typeof u.organization === "string" ? u.organization : "(vacío)"))
   );
   console.log("Valores de 'organization' en el directorio de Slack:", Array.from(orgValues));
 
@@ -331,7 +354,7 @@ Deno.serve(async (req) => {
     office_id: string | null;
   }> = [];
 
-  for (const u of validUsers) {
+  for (const u of scopedUsers) {
     const slackId = u.slack_id as string;
     const full_name = (u.real_name as string).trim();
     const email = emailBySlackId.get(slackId);

@@ -32,10 +32,34 @@ export default function Login() {
     const trimmedPassword = (passwordRef.current?.value ?? "").trim();
 
     if (trimmed.includes("@")) {
-      const { error } = await supabase.auth.signInWithPassword({ email: trimmed, password: trimmedPassword });
-      if (error) {
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
+        email: trimmed,
+        password: trimmedPassword,
+      });
+      if (error || !signInData.session) {
         setError("Usuario o contraseña incorrectos.");
         setSubmitting(false);
+        return;
+      }
+
+      // El camino por username (resolve-username) ya exige active=true
+      // ANTES de emitir sesión -- este, al llamar directo a Supabase Auth,
+      // se saltaba ese chequeo por completo: una cuenta desactivada seguía
+      // pudiendo entrar con su correo aunque ya no pudiera entrar con su
+      // usuario. set-account-active solo apaga profiles.active, nunca
+      // bloquea la contraseña real en Auth, así que sin esto la sesión se
+      // emitía igual.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("active")
+        .eq("id", signInData.session.user.id)
+        .maybeSingle();
+
+      if (!profile?.active) {
+        await supabase.auth.signOut();
+        setError("Usuario o contraseña incorrectos.");
+        setSubmitting(false);
+        return;
       }
       return;
     }

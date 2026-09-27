@@ -116,12 +116,25 @@ async function countFailures(
   return count ?? 0;
 }
 
+// Atómico (función SECURITY DEFINER con advisory lock, ver migración 0100)
+// -- el conteo+inserción anterior desde aquí (SELECT y luego INSERT, dos
+// llamadas separadas) dejaba una ventana: varias requests concurrentes
+// leían el mismo conteo antes de que cualquiera insertara su fila, así
+// que un atacante con suficientes intentos en paralelo se saltaba el
+// límite. Devuelve si YA se pasó del límite (incluyendo este fallo), para
+// responder 429 en vez del error genérico en ese caso.
 async function recordFailure(
   adminClient: ReturnType<typeof createClient>,
   bucket: string,
   identifier: string
-) {
-  await adminClient.from("edge_rate_limits").insert({ bucket, identifier });
+): Promise<boolean> {
+  const { data } = await adminClient.rpc("rate_limit_record_failure", {
+    p_bucket: bucket,
+    p_identifier: identifier,
+    p_window_minutes: 15,
+    p_limit: 10,
+  });
+  return data === true;
 }
 
 // Sin JWT a propósito: se llama ANTES de iniciar sesión, para autenticar por
@@ -195,10 +208,13 @@ Deno.serve(async (req) => {
   // distribuida (quien rota IPs tenía intentos ilimitados contra una cuenta
   // conocida), y aquí una respuesta correcta devuelve la sesión completa.
   async function failAttempt() {
-    await Promise.all([
+    const [ipOverLimit, userOverLimit] = await Promise.all([
       recordFailure(adminClient, "resolve-username-ip", ip),
       recordFailure(adminClient, "resolve-username-user", username!),
     ]);
+    if (ipOverLimit || userOverLimit) {
+      return jsonResponse(TOO_MANY, 429);
+    }
     return jsonResponse(GENERIC_ERROR, 400);
   }
 

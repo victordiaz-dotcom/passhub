@@ -533,6 +533,13 @@ export type Database = {
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "visit_preregistrations_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
         ]
       }
       visit_types: {
@@ -765,6 +772,7 @@ export type Database = {
           weekday: number
         }[]
       }
+      clear_own_must_change_password: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -782,6 +790,24 @@ export type Database = {
         Returns: undefined
       }
       my_office_id: { Args: never; Returns: string }
+      rate_limit_record_failure: {
+        Args: {
+          p_bucket: string
+          p_identifier: string
+          p_limit: number
+          p_window_minutes: number
+        }
+        Returns: boolean
+      }
+      rate_limit_try_reserve: {
+        Args: {
+          p_bucket: string
+          p_identifier: string
+          p_limit: number
+          p_window_minutes: number
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "recepcion" | "superadmin" | "guardia"

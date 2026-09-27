@@ -631,7 +631,8 @@ export default function Users() {
           </div>
           {form.passwordMode === "custom" && (
             <input
-              type="text"
+              type="password"
+              autoComplete="new-password"
               required
               minLength={8}
               placeholder="Mínimo 8 caracteres"
@@ -994,7 +995,8 @@ export default function Users() {
 
             {resetMode === "custom" && (
               <input
-                type="text"
+                type="password"
+                autoComplete="new-password"
                 required
                 minLength={8}
                 placeholder="Mínimo 8 caracteres"

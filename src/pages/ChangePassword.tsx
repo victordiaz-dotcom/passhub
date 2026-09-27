@@ -51,10 +51,11 @@ export default function ChangePassword() {
       return;
     }
 
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ must_change_password: false })
-      .eq("id", session!.user.id);
+    // RPC en vez de un update directo: la política de profiles ya no deja
+    // apagar must_change_password con un PATCH plano (se podía apagar sin
+    // haber cambiado nunca la contraseña) -- esta función SECURITY DEFINER
+    // solo lo apaga si auth.users de verdad se acaba de actualizar.
+    const { error: profileError } = await supabase.rpc("clear_own_must_change_password");
 
     if (profileError) {
       console.error(profileError);
