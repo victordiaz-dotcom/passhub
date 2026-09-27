@@ -18,7 +18,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export function AppHeader() {
-  const { profile, roles, isAdmin, isSuperadmin, signOut } = useAuth();
+  const { profile, roles, isAdmin, signOut } = useAuth();
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? "Usuario";
   const roleLabel = roles.map((role) => ROLE_LABELS[role] ?? role).join(", ");
   // office_id null = sin oficina asignada (superadmin, o admin sin
@@ -146,11 +146,6 @@ export function AppHeader() {
         {isAdmin && (
           <NavLink to="/catalogs" className={navLinkClass}>
             Catálogos
-          </NavLink>
-        )}
-        {isSuperadmin && (
-          <NavLink to="/audit-log" className={navLinkClass}>
-            Auditoría
           </NavLink>
         )}
       </nav>
