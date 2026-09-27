@@ -18,14 +18,16 @@ import Users from "@/pages/Users";
 import AuditLog from "@/pages/AuditLog";
 import Catalogs from "@/pages/Catalogs";
 
-// Redirect de la ruta pública vieja (/pre-registro/confirmacion/:token) a la
-// nueva en inglés -- por si ya se compartió esa liga con algún visitante o
-// proveedor (QR impreso, mensaje, etc.) antes del cambio de nombre de
-// rutas. Conserva el token y el ?lang= tal cual.
+// Redirect de cualquier liga vieja con el token en la RUTA -- ya sea la
+// ruta en español (/pre-registro/confirmacion/:token) o la propia ruta en
+// inglés de antes de mover el token a un fragmento ("#") -- a la forma
+// nueva, con el token después de "#" en vez de en la ruta o el query
+// string (ver el comentario en PreRegistro.tsx sobre por qué). Conserva el
+// ?lang= tal cual, solo mueve el token.
 function RedirectOldPreregConfirmacion() {
   const { token } = useParams();
   const location = useLocation();
-  return <Navigate to={`/pre-register/confirmation/${token}${location.search}`} replace />;
+  return <Navigate to={`/pre-register/confirmation${location.search}#${token}`} replace />;
 }
 
 // Guardia es de solo lectura y no tiene nada que hacer en el check-in
@@ -60,9 +62,12 @@ export default function App() {
             oficina en vez de intentar adivinarla. */}
         <Route path="/mx" element={<PreRegistro />} />
         <Route path="/es" element={<PreRegistro />} />
-        <Route path="/pre-register/confirmation/:token" element={<PreRegistroConfirmacion />} />
-        {/* Rutas viejas en español -- redirect por si ya se compartieron
-            ligas de pre-registro antes de este cambio de nombre. */}
+        <Route path="/pre-register/confirmation" element={<PreRegistroConfirmacion />} />
+        {/* Rutas viejas con el token en la ruta -- redirect por si ya se
+            compartieron ligas de pre-registro antes de mover el token a un
+            fragmento ("#"), o antes del cambio de nombre de rutas al
+            inglés. */}
+        <Route path="/pre-register/confirmation/:token" element={<RedirectOldPreregConfirmacion />} />
         <Route path="/pre-registro" element={<Navigate to="/pre-register" replace />} />
         <Route path="/pre-registro/confirmacion/:token" element={<RedirectOldPreregConfirmacion />} />
         <Route

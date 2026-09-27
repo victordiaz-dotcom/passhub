@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import QRCodeStyling from "qr-code-styling";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -50,7 +50,15 @@ function addDays(value: string, days: number) {
 }
 
 export default function PreRegistroConfirmacion() {
-  const { token } = useParams<{ token: string }>();
+  // El token va en el fragmento ("#...", después de window.location.hash),
+  // no en un param de ruta -- así nunca se manda al servidor (a diferencia
+  // de un path segment o un ?query=), y no queda en logs de acceso/proxy ni
+  // lo puede leer el bot de vista-previa de enlaces de WhatsApp/Telegram
+  // (que no corre JavaScript, solo hace un GET normal de la página). Se lee
+  // React Router actualiza location si se abre otro enlace de confirmación
+  // sin recargar la página; así siempre se consulta el token vigente.
+  const location = useLocation();
+  const token = location.hash.slice(1) || undefined;
   const [searchParams] = useSearchParams();
   const [details, setDetails] = useState<Preregistration | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +76,12 @@ export default function PreRegistroConfirmacion() {
   const qrCodeRef = useRef<QRCodeStyling | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setDetails(null);
+    setError(null);
+    qrCodeRef.current = null;
+
     if (!token) {
       setLoading(false);
       setError(t.missingTokenInUrl);
@@ -77,6 +91,7 @@ export default function PreRegistroConfirmacion() {
     supabase.functions
       .invoke("public-preregister", { body: { action: "get", token } })
       .then(({ data, error: invokeError }) => {
+        if (cancelled) return;
         setLoading(false);
 
         if (invokeError) {
@@ -99,10 +114,12 @@ export default function PreRegistroConfirmacion() {
         setDetails(data.preregistration as Preregistration);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error(err);
         setLoading(false);
         setError(t.loadErrorFallback);
       });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 

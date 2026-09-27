@@ -619,7 +619,16 @@ export default function PreRegistro() {
       return;
     }
 
-    navigate(`/pre-register/confirmation/${data.token}?lang=${lang}`);
+    // El token va después de "#" (fragmento), no en la ruta ni en el query
+    // string -- un fragmento nunca se manda al servidor en la petición HTTP
+    // (a diferencia de un path segment o un ?query=), así que no queda en
+    // logs de acceso/proxy, y el bot de vista-previa de enlaces de
+    // WhatsApp/Telegram (que solo hace un GET normal, sin correr JavaScript)
+    // no puede leerlo para llamar a public-preregister en nuestro nombre.
+    // Sigue siendo el mismo link guardable/escaneable de siempre para el
+    // visitante -- ver PreRegistroConfirmacion.tsx, que ahora lee el token
+    // de window.location.hash en vez de un param de ruta.
+    navigate(`/pre-register/confirmation?lang=${lang}#${data.token}`);
   }
 
   return (
