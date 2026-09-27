@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
   // ninguna tabla directamente.
   const { data: callerProfile } = await adminClient
     .from("profiles")
-    .select("active, office_id")
+    .select("active, company_id, office_id")
     .eq("id", caller.id)
     .single();
 
@@ -190,13 +190,18 @@ Deno.serve(async (req) => {
 
   const { data: target, error: targetError } = await adminClient
     .from("profiles")
-    .select("full_name, email, office_id")
+    .select("full_name, email, company_id, office_id")
     .eq("id", userId)
     .maybeSingle();
 
   if (targetError || !target) {
     return jsonResponse({ error: "No se encontró la cuenta." }, 404);
   }
+
+  // Confirmado con el usuario: la única restricción real es por oficina/país
+  // -- varias empresas comparten una misma oficina física, y quien
+  // administra esa oficina debe poder editar cuentas de cualquiera de
+  // ellas. No se restringe por empresa.
 
   // Mismo criterio que create-user: un admin normal solo puede actuar sobre
   // cuentas de su propia oficina. Faltaba aquí -- un admin de una oficina

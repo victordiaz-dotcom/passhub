@@ -162,11 +162,13 @@ export function PhotoUploadField({
   return (
     <div>
       <p className="mb-2 text-center text-sm text-ink-soft">{label}</p>
+      {/* Sin el atributo capture: en móvil el sistema ofrece cámara Y
+          galería (antes, con capture="environment", se saltaba directo a
+          la cámara sin dar opción de elegir una foto ya tomada). */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleFileChange}
         disabled={disabled || uploading}
         className="hidden"

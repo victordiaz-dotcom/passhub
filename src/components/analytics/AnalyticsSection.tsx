@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { COUNTRY_FLAGS, COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
 
 // rgb(var(--token)) en vez de un hex fijo: como son variables CSS vivas, el
 // grid/los ejes/el tooltip siguen el tema activo (claro/oscuro) solos, sin
@@ -33,6 +34,7 @@ type ChartColors = {
   porDiaSemana: string;
   topEmpresas: string;
   topAnfitriones: string;
+  topVisitantes: string;
   preregPendiente: string;
   preregUsada: string;
   preregVencida: string;
@@ -50,6 +52,7 @@ const DEFAULT_CHART_COLORS: ChartColors = {
   porDiaSemana: "#1873dc",
   topEmpresas: "#1873dc",
   topAnfitriones: "#0e4381",
+  topVisitantes: "#6a1b9a",
   preregPendiente: "#ff9800",
   preregUsada: "#1873dc",
   preregVencida: "#f44336",
@@ -232,7 +235,15 @@ function ChartCard({
   );
 }
 
-function MonthlyEntriesChart({ color, onColorChange }: { color: string; onColorChange: (v: string) => void }) {
+function MonthlyEntriesChart({
+  color,
+  onColorChange,
+  country,
+}: {
+  color: string;
+  onColorChange: (v: string) => void;
+  country: string;
+}) {
   const [fromDate, setFromDate] = useState(monthsAgoStart(5));
   const [toDate, setToDate] = useState(todayLocal());
   const [data, setData] = useState<MonthlyPoint[]>([]);
@@ -245,7 +256,7 @@ function MonthlyEntriesChart({ color, onColorChange }: { color: string; onColorC
     setError(null);
     const { startIso, endIso } = localRangeToUtc(fromDate, toDate);
     supabase
-      .rpc("analytics_visits_by_month", { p_start: startIso, p_end: endIso })
+      .rpc("analytics_visits_by_month", { p_start: startIso, p_end: endIso, p_country: country || undefined })
       .then(({ data: rows, error: err }) => {
         if (cancelled) return;
         if (err) {
@@ -261,7 +272,7 @@ function MonthlyEntriesChart({ color, onColorChange }: { color: string; onColorC
     return () => {
       cancelled = true;
     };
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, country]);
 
   return (
     <ChartCard
@@ -294,7 +305,7 @@ function MonthlyEntriesChart({ color, onColorChange }: { color: string; onColorC
   );
 }
 
-function ComparisonCard() {
+function ComparisonCard({ country }: { country: string }) {
   const [comparison, setComparison] = useState<{ current: number; previous: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -305,7 +316,7 @@ function ComparisonCard() {
     setError(null);
     const range = localRangeToUtc(monthsAgoStart(1), todayLocal());
     supabase
-      .rpc("analytics_visits_by_month", { p_start: range.startIso, p_end: range.endIso })
+      .rpc("analytics_visits_by_month", { p_start: range.startIso, p_end: range.endIso, p_country: country || undefined })
       .then(({ data: rows, error: err }) => {
         if (cancelled) return;
         if (err) {
@@ -323,7 +334,7 @@ function ComparisonCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [country]);
 
   const variation =
     comparison && comparison.previous > 0
@@ -362,7 +373,15 @@ function ComparisonCard() {
   );
 }
 
-function TopCompaniesChart({ color, onColorChange }: { color: string; onColorChange: (v: string) => void }) {
+function TopCompaniesChart({
+  color,
+  onColorChange,
+  country,
+}: {
+  color: string;
+  onColorChange: (v: string) => void;
+  country: string;
+}) {
   const [fromDate, setFromDate] = useState(monthsAgoStart(5));
   const [toDate, setToDate] = useState(todayLocal());
   const [limit, setLimit] = useState(10);
@@ -376,7 +395,7 @@ function TopCompaniesChart({ color, onColorChange }: { color: string; onColorCha
     setError(null);
     const { startIso, endIso } = localRangeToUtc(fromDate, toDate);
     supabase
-      .rpc("analytics_top_visitor_companies", { p_start: startIso, p_end: endIso, p_limit: limit })
+      .rpc("analytics_top_visitor_companies", { p_start: startIso, p_end: endIso, p_limit: limit, p_country: country || undefined })
       .then(({ data: rows, error: err }) => {
         if (cancelled) return;
         if (err) {
@@ -391,7 +410,7 @@ function TopCompaniesChart({ color, onColorChange }: { color: string; onColorCha
     return () => {
       cancelled = true;
     };
-  }, [fromDate, toDate, limit]);
+  }, [fromDate, toDate, limit, country]);
 
   return (
     <ChartCard
@@ -425,7 +444,15 @@ function TopCompaniesChart({ color, onColorChange }: { color: string; onColorCha
   );
 }
 
-function TopHostsChart({ color, onColorChange }: { color: string; onColorChange: (v: string) => void }) {
+function TopHostsChart({
+  color,
+  onColorChange,
+  country,
+}: {
+  color: string;
+  onColorChange: (v: string) => void;
+  country: string;
+}) {
   const [fromDate, setFromDate] = useState(monthsAgoStart(5));
   const [toDate, setToDate] = useState(todayLocal());
   const [limit, setLimit] = useState(10);
@@ -439,7 +466,7 @@ function TopHostsChart({ color, onColorChange }: { color: string; onColorChange:
     setError(null);
     const { startIso, endIso } = localRangeToUtc(fromDate, toDate);
     supabase
-      .rpc("analytics_top_hosts", { p_start: startIso, p_end: endIso, p_limit: limit })
+      .rpc("analytics_top_hosts", { p_start: startIso, p_end: endIso, p_limit: limit, p_country: country || undefined })
       .then(({ data: rows, error: err }) => {
         if (cancelled) return;
         if (err) {
@@ -454,7 +481,7 @@ function TopHostsChart({ color, onColorChange }: { color: string; onColorChange:
     return () => {
       cancelled = true;
     };
-  }, [fromDate, toDate, limit]);
+  }, [fromDate, toDate, limit, country]);
 
   return (
     <ChartCard
@@ -488,12 +515,86 @@ function TopHostsChart({ color, onColorChange }: { color: string; onColorChange:
   );
 }
 
+function TopVisitorsChart({
+  color,
+  onColorChange,
+  country,
+}: {
+  color: string;
+  onColorChange: (v: string) => void;
+  country: string;
+}) {
+  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
+  const [toDate, setToDate] = useState(todayLocal());
+  const [limit, setLimit] = useState(10);
+  const [data, setData] = useState<NamedCount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const { startIso, endIso } = localRangeToUtc(fromDate, toDate);
+    supabase
+      .rpc("analytics_top_visitors", { p_start: startIso, p_end: endIso, p_limit: limit, p_country: country || undefined })
+      .then(({ data: rows, error: err }) => {
+        if (cancelled) return;
+        if (err) {
+          console.error(err);
+          setError("No se pudo cargar.");
+          setLoading(false);
+          return;
+        }
+        setData((rows ?? []).map((row) => ({ name: row.visitor_name, visits: row.visits_count })));
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromDate, toDate, limit, country]);
+
+  return (
+    <ChartCard
+      title="Personas que más visitan"
+      note={country ? `Filtrado por ${COUNTRY_LABELS[country] ?? country}.` : "Todos los países."}
+      controls={
+        <>
+          <ColorSwatch label="Color de esta gráfica" value={color} onChange={onColorChange} />
+          <LimitSelect value={limit} onChange={setLimit} />
+          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
+        </>
+      }
+    >
+      {loading ? (
+        <LoadingState />
+      ) : error ? (
+        <ErrorState message={error} />
+      ) : data.length === 0 ? (
+        <EmptyState message="Sin datos para este periodo." />
+      ) : (
+        <ResponsiveContainer width="100%" height={Math.max(220, data.length * 36)}>
+          <BarChart data={data} layout="vertical" margin={{ left: 24 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: TICK_COLOR }} />
+            <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12, fill: TICK_COLOR }} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_LABEL_STYLE} />
+            <Bar dataKey="visits" fill={color} radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  );
+}
+
 function PreregStatusChart({
   colors,
   onColorChange,
+  country,
 }: {
   colors: ChartColors;
   onColorChange: (key: keyof ChartColors, value: string) => void;
+  country: string;
 }) {
   const [fromDate, setFromDate] = useState(monthsAgoStart(5));
   const [toDate, setToDate] = useState(todayLocal());
@@ -513,7 +614,7 @@ function PreregStatusChart({
     setError(null);
     const { startIso, endIso } = localRangeToUtc(fromDate, toDate);
     supabase
-      .rpc("analytics_prereg_status_breakdown", { p_start: startIso, p_end: endIso })
+      .rpc("analytics_prereg_status_breakdown", { p_start: startIso, p_end: endIso, p_country: country || undefined })
       .then(({ data: rows, error: err }) => {
         if (cancelled) return;
         if (err) {
@@ -535,7 +636,7 @@ function PreregStatusChart({
     return () => {
       cancelled = true;
     };
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, country]);
 
   return (
     <ChartCard
@@ -582,7 +683,15 @@ function PreregStatusChart({
   );
 }
 
-function WeekdayChart({ color, onColorChange }: { color: string; onColorChange: (v: string) => void }) {
+function WeekdayChart({
+  color,
+  onColorChange,
+  country,
+}: {
+  color: string;
+  onColorChange: (v: string) => void;
+  country: string;
+}) {
   const [fromDate, setFromDate] = useState(monthsAgoStart(5));
   const [toDate, setToDate] = useState(todayLocal());
   const [data, setData] = useState<WeekdayPoint[]>([]);
@@ -595,7 +704,7 @@ function WeekdayChart({ color, onColorChange }: { color: string; onColorChange: 
     setError(null);
     const { startIso, endIso } = localRangeToUtc(fromDate, toDate);
     supabase
-      .rpc("analytics_visits_by_weekday", { p_start: startIso, p_end: endIso })
+      .rpc("analytics_visits_by_weekday", { p_start: startIso, p_end: endIso, p_country: country || undefined })
       .then(({ data: rows, error: err }) => {
         if (cancelled) return;
         if (err) {
@@ -611,7 +720,7 @@ function WeekdayChart({ color, onColorChange }: { color: string; onColorChange: 
     return () => {
       cancelled = true;
     };
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, country]);
 
   return (
     <ChartCard
@@ -644,7 +753,15 @@ function WeekdayChart({ color, onColorChange }: { color: string; onColorChange: 
   );
 }
 
-function HourChart({ color, onColorChange }: { color: string; onColorChange: (v: string) => void }) {
+function HourChart({
+  color,
+  onColorChange,
+  country,
+}: {
+  color: string;
+  onColorChange: (v: string) => void;
+  country: string;
+}) {
   const [fromDate, setFromDate] = useState(monthsAgoStart(5));
   const [toDate, setToDate] = useState(todayLocal());
   const [data, setData] = useState<HourPoint[]>([]);
@@ -657,7 +774,7 @@ function HourChart({ color, onColorChange }: { color: string; onColorChange: (v:
     setError(null);
     const { startIso, endIso } = localRangeToUtc(fromDate, toDate);
     supabase
-      .rpc("analytics_visits_by_hour", { p_start: startIso, p_end: endIso })
+      .rpc("analytics_visits_by_hour", { p_start: startIso, p_end: endIso, p_country: country || undefined })
       .then(({ data: rows, error: err }) => {
         if (cancelled) return;
         if (err) {
@@ -673,7 +790,7 @@ function HourChart({ color, onColorChange }: { color: string; onColorChange: (v:
     return () => {
       cancelled = true;
     };
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, country]);
 
   return (
     <ChartCard
@@ -707,9 +824,10 @@ function HourChart({ color, onColorChange }: { color: string; onColorChange: (v:
 }
 
 export function AnalyticsSection() {
-  const { session } = useAuth();
+  const { session, isSuperadmin } = useAuth();
   const userId = session?.user.id;
   const [chartColors, setChartColors] = useState<ChartColors>(DEFAULT_CHART_COLORS);
+  const [country, setCountry] = useState("");
 
   useEffect(() => {
     // Limpieza de la versión vieja (localStorage, por navegador) — ya no se
@@ -771,26 +889,62 @@ export function AnalyticsSection() {
           Cada gráfica tiene su propio color y su propio rango de fechas — cámbialos directamente en la
           gráfica que quieras ajustar.
         </p>
-        <button
-          type="button"
-          onClick={resetColors}
-          className="shrink-0 text-xs font-medium text-ink-soft hover:text-ink"
-        >
-          Restaurar todos los colores por defecto
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          {isSuperadmin && (
+            <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+              País
+              <select
+                aria-label="Filtrar analíticas por país"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="rounded border border-line bg-card px-1.5 py-1 text-xs text-ink focus:border-accent focus:outline-none"
+              >
+                <option value="">Todos</option>
+                {COUNTRY_ORDER.map((code) => (
+                  <option key={code} value={code}>
+                    {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            type="button"
+            onClick={resetColors}
+            className="shrink-0 text-xs font-medium text-ink-soft hover:text-ink"
+          >
+            Restaurar todos los colores por defecto
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <MonthlyEntriesChart
           color={chartColors.entradasPorMes}
           onColorChange={(v) => updateColor("entradasPorMes", v)}
+          country={country}
         />
-        <ComparisonCard />
-        <TopCompaniesChart color={chartColors.topEmpresas} onColorChange={(v) => updateColor("topEmpresas", v)} />
-        <TopHostsChart color={chartColors.topAnfitriones} onColorChange={(v) => updateColor("topAnfitriones", v)} />
-        <PreregStatusChart colors={chartColors} onColorChange={updateColor} />
-        <WeekdayChart color={chartColors.porDiaSemana} onColorChange={(v) => updateColor("porDiaSemana", v)} />
-        <HourChart color={chartColors.porHora} onColorChange={(v) => updateColor("porHora", v)} />
+        <ComparisonCard country={country} />
+        <TopCompaniesChart
+          color={chartColors.topEmpresas}
+          onColorChange={(v) => updateColor("topEmpresas", v)}
+          country={country}
+        />
+        <TopHostsChart
+          color={chartColors.topAnfitriones}
+          onColorChange={(v) => updateColor("topAnfitriones", v)}
+          country={country}
+        />
+        {isSuperadmin && (
+          <TopVisitorsChart
+            color={chartColors.topVisitantes}
+            onColorChange={(v) => updateColor("topVisitantes", v)}
+            country={country}
+          />
+        )}
+        <PreregStatusChart colors={chartColors} onColorChange={updateColor} country={country} />
+        <WeekdayChart color={chartColors.porDiaSemana} onColorChange={(v) => updateColor("porDiaSemana", v)} country={country} />
+        <HourChart color={chartColors.porHora} onColorChange={(v) => updateColor("porHora", v)} country={country} />
       </div>
     </div>
   );

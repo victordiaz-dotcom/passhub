@@ -41,6 +41,31 @@ const ALLOWED_ROLES = ["admin", "recepcion", "superadmin", "guardia"];
 const ELEVATED_ROLES = ["admin", "superadmin"];
 const MAX_BODY_BYTES = 100_000;
 
+// Correos corporativos permitidos para crear cuentas -- comparación exacta
+// del dominio completo (nunca .endsWith() sobre el string del correo: eso
+// aceptaría "alguien@no-tendencys.com" si se escribiera mal como
+// `.endsWith("tendencys.com")`).
+const ALLOWED_EMAIL_DOMAINS = ["tendencys.com", "ecartpay.com", "parapaquetes.com", "envia.com"];
+
+function emailDomainAllowed(email: string): boolean {
+  const at = email.lastIndexOf("@");
+  if (at === -1) return false;
+  return ALLOWED_EMAIL_DOMAINS.includes(email.slice(at + 1));
+}
+
+const EMAIL_FORMAT = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+// Mismo criterio que isValidName() en src/lib/nameValidation.ts (no se
+// puede importar directo: esta función corre en su propio runtime de Deno,
+// desplegada aparte del frontend) -- \p{L}\p{M} en vez de una lista fija de
+// letras del español, para no rechazar nombres reales de otros idiomas o
+// acentos compuestos por ciertos teclados/IMEs.
+const NAME_CHARS = /^[\p{L}\p{M}][\p{L}\p{M}\s'’.-]*$/u;
+function isValidName(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 80 && NAME_CHARS.test(trimmed);
+}
+
 // Mirar solo el header content-length no protege nada: con
 // "Transfer-Encoding: chunked" un cliente lo puede omitir por completo (o
 // mentir), y aun así Deno intenta leer el body entero sin límite propio --
@@ -229,9 +254,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Cuerpo de la solicitud inválido." }, 400);
   }
 
-  const { email, fullName, companyId, role, password, requireChange } = body;
+  const { fullName, companyId, role, password, requireChange } = body;
   const officeId = body.officeId?.trim() || null;
   const username = body.username?.trim().toLowerCase();
+  const email = body.email?.trim().toLowerCase();
 
   if (!email || !username || !fullName || !companyId || !role) {
     return jsonResponse({ error: "Faltan campos requeridos." }, 400);
@@ -241,15 +267,35 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Rol inválido." }, 400);
   }
 
+  if (!EMAIL_FORMAT.test(email)) {
+    return jsonResponse({ error: "Escribe un correo electrónico válido." }, 400);
+  }
+
+  if (!emailDomainAllowed(email)) {
+    return jsonResponse(
+      {
+        error: `Solo se permiten correos de: ${ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(", ")}.`,
+      },
+      400
+    );
+  }
+
+  if (!isValidName(fullName)) {
+    return jsonResponse(
+      { error: "El nombre solo puede tener letras, espacios, guiones y apóstrofes (sin números ni símbolos)." },
+      400
+    );
+  }
+
 
   if (ELEVATED_ROLES.includes(role) && !callerIsSuperadmin) {
     return jsonResponse({ error: "Solo un super admin puede crear cuentas de admin o super admin." }, 403);
   }
 
-  if (!callerIsSuperadmin && callerProfile?.company_id && companyId !== callerProfile.company_id) {
-    return jsonResponse({ error: "Solo puedes crear cuentas dentro de tu propia empresa." }, 403);
-  }
-
+  // Confirmado con el usuario: la única restricción real es por oficina/país
+  // -- varias empresas comparten una misma oficina física, y quien
+  // administra esa oficina debe poder crear/gestionar cuentas de cualquiera
+  // de ellas. No se restringe por empresa.
   if (!callerIsSuperadmin && callerProfile?.office_id && officeId !== callerProfile.office_id) {
     return jsonResponse({ error: "Solo puedes crear cuentas dentro de tu propia oficina." }, 403);
   }
@@ -266,13 +312,14 @@ Deno.serve(async (req) => {
     );
   }
 
+  const trimmedFullName = fullName.trim();
   const tempPassword = password?.trim() || generateTempPassword();
 
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email,
     password: tempPassword,
     email_confirm: true,
-    user_metadata: { full_name: fullName },
+    user_metadata: { full_name: trimmedFullName },
   });
 
   if (createError || !created.user) {
@@ -284,7 +331,7 @@ Deno.serve(async (req) => {
 
   const { error: profileError } = await adminClient.from("profiles").insert({
     id: newUserId,
-    full_name: fullName,
+    full_name: trimmedFullName,
     email,
     username,
     company_id: companyId,
@@ -317,7 +364,7 @@ Deno.serve(async (req) => {
     entity: "profiles",
     entity_id: newUserId,
     detail: {
-      full_name: fullName,
+      full_name: trimmedFullName,
       email,
       username,
       role,

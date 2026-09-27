@@ -442,10 +442,36 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Faltan campos requeridos." }, 400);
   }
 
-  // El front ya filtra el teléfono a solo dígitos mientras se escribe; esto
-  // es la validación real (alguien podría llamar a este endpoint directo).
-  if (typeof visitorPhone === "string" && visitorPhone && !/^\d+$/.test(visitorPhone)) {
-    return jsonResponse({ error: "El teléfono solo debe contener números." }, 400);
+  // Mismo criterio que isValidName() en src/lib/nameValidation.ts (no se
+  // puede importar directo: esta función corre en su propio runtime de
+  // Deno) -- \p{L}\p{M} en vez de una lista fija de letras del español,
+  // para no rechazar nombres reales de otros idiomas o acentos compuestos
+  // por ciertos teclados/IMEs. El front ya valida esto antes de enviar, pero
+  // esta es la validación real (alguien podría llamar a este endpoint
+  // directo, sin pasar por el formulario).
+  const NAME_CHARS = /^[\p{L}\p{M}][\p{L}\p{M}\s'’.-]*$/u;
+  const trimmedVisitorName = (visitorName as string).trim();
+  if (trimmedVisitorName.length > 80 || !NAME_CHARS.test(trimmedVisitorName)) {
+    return jsonResponse(
+      { error: "El nombre solo puede tener letras, espacios, guiones y apóstrofes (sin números ni símbolos)." },
+      400
+    );
+  }
+
+  // El front ya filtra el teléfono a solo dígitos (máx. 10) mientras se
+  // escribe; esto es la validación real (alguien podría llamar a este
+  // endpoint directo). Tope de 10, no longitud fija exigida: España usa 9
+  // dígitos y esta misma oficina (Madrid) también manda visitantes por
+  // aquí -- exigir exactamente 10 rechazaría un teléfono español real.
+  if (typeof visitorPhone === "string" && visitorPhone && !/^\d{1,10}$/.test(visitorPhone)) {
+    return jsonResponse({ error: "El teléfono solo debe contener números (máximo 10 dígitos)." }, 400);
+  }
+
+  // El front ya filtra los caracteres del correo mientras se escribe; esto
+  // es la validación real de formato completo.
+  const EMAIL_FORMAT = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  if (typeof visitorEmail === "string" && visitorEmail && !EMAIL_FORMAT.test(visitorEmail.trim())) {
+    return jsonResponse({ error: "Escribe un correo electrónico válido." }, 400);
   }
 
   // Si "¿traes vehículo?" no es obligatorio y no se contestó, se trata como
@@ -576,8 +602,11 @@ Deno.serve(async (req) => {
       company_id: companyId,
       office_id: officeId,
       facility,
-      visitor_name: visitorName,
-      visitor_company: typeof visitorCompany === "string" && visitorCompany ? visitorCompany : null,
+      // Se guarda el nombre ya recortado -- antes se guardaba el valor
+      // CRUDO (con espacios de sobra si los traía), y un tester encontró
+      // visitas con nombres como "Pruebas " ya en la base de datos por eso.
+      visitor_name: trimmedVisitorName,
+      visitor_company: typeof visitorCompany === "string" && visitorCompany ? visitorCompany.trim() : null,
       visitor_phone: typeof visitorPhone === "string" && visitorPhone ? visitorPhone : null,
       visitor_email: typeof visitorEmail === "string" && visitorEmail ? visitorEmail : null,
       host_employee_id: hasHostEmployee ? hostEmployeeId : null,

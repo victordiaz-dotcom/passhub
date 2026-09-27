@@ -169,7 +169,10 @@ export default function Historial() {
   }
 
   async function handleCheckout(visit: VisitRow) {
-    if (!session?.user) return;
+    if (!session?.user) {
+      setCheckoutError("Tu sesión expiró. Vuelve a iniciar sesión e intenta de nuevo.");
+      return;
+    }
     setCheckoutError(null);
 
     const { error } = await checkoutVisit(visit.id, session.user.id);
@@ -707,8 +710,8 @@ export default function Historial() {
         open={!!checkoutTarget}
         title="¿Registrar la salida de este visitante?"
         message={checkoutTarget ? `Se registrará la salida de ${checkoutTarget.visitor_name}.` : undefined}
-        onConfirm={() => {
-          if (checkoutTarget) handleCheckout(checkoutTarget);
+        onConfirm={async () => {
+          if (checkoutTarget) await handleCheckout(checkoutTarget);
           setCheckoutTarget(null);
         }}
         onCancel={() => {

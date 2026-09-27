@@ -701,14 +701,19 @@ export type Database = {
     }
     Functions: {
       analytics_prereg_status_breakdown: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_country?: string; p_end: string; p_start: string }
         Returns: {
           status: string
           status_count: number
         }[]
       }
       analytics_top_hosts: {
-        Args: { p_end: string; p_limit?: number; p_start: string }
+        Args: {
+          p_country?: string
+          p_end: string
+          p_limit?: number
+          p_start: string
+        }
         Returns: {
           employee_id: string
           full_name: string
@@ -716,28 +721,45 @@ export type Database = {
         }[]
       }
       analytics_top_visitor_companies: {
-        Args: { p_end: string; p_limit?: number; p_start: string }
+        Args: {
+          p_country?: string
+          p_end: string
+          p_limit?: number
+          p_start: string
+        }
         Returns: {
           visitor_company: string
           visits_count: number
         }[]
       }
+      analytics_top_visitors: {
+        Args: {
+          p_country?: string
+          p_end: string
+          p_limit?: number
+          p_start: string
+        }
+        Returns: {
+          visitor_name: string
+          visits_count: number
+        }[]
+      }
       analytics_visits_by_hour: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_country?: string; p_end: string; p_start: string }
         Returns: {
           hour_of_day: number
           visits_count: number
         }[]
       }
       analytics_visits_by_month: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_country?: string; p_end: string; p_start: string }
         Returns: {
           month_start: string
           visits_count: number
         }[]
       }
       analytics_visits_by_weekday: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_country?: string; p_end: string; p_start: string }
         Returns: {
           visits_count: number
           weekday: number

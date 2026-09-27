@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -11,6 +11,8 @@ import { checkoutVisit } from "@/lib/checkout";
 import { TableSkeletonRows } from "@/components/Skeleton";
 import { copyToClipboard } from "@/lib/clipboard";
 import { findFlaggedVisitor, flagVisitor, type FlaggedVisitorMatch } from "@/lib/flaggedVisitors";
+import { isValidName, NAME_INVALID_MESSAGE } from "@/lib/nameValidation";
+import { filterNameInput, filterPhoneInput, filterEmailInput, isValidEmailFormat, EMAIL_INVALID_MESSAGE } from "@/lib/inputFilters";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Pick<Tables<"employees">, "id" | "full_name">;
@@ -74,7 +76,7 @@ function randomId() {
 }
 
 export default function CheckIn() {
-  const { session, companyId, profile } = useAuth();
+  const { session, companyId, profile, isSuperadmin } = useAuth();
 
   const [tab, setTab] = useState<"registrar" | "dentro">("registrar");
   const [insideVisits, setInsideVisits] = useState<InsideVisit[]>([]);
@@ -138,6 +140,7 @@ export default function CheckIn() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState<boolean | null>(null);
+  const [slackWarning, setSlackWarning] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +199,39 @@ export default function CheckIn() {
   }, [selectedCompanyId]);
 
   useEffect(() => {
+    // superadmin nunca se restringe por su propia oficina -- aunque su
+    // perfil tenga una office_id asignada (puede pasar si se le asignó una
+    // por error, o si algún día se le da una por conveniencia de UI), debe
+    // poder registrar visitas para CUALQUIER instalación de CUALQUIER país,
+    // no solo la de su propia oficina. Se traen todas las instalaciones
+    // activas de una vez, con el nombre de su oficina para desambiguar
+    // (Envia.com existe tanto en Monterrey como en Madrid).
+    if (isSuperadmin) {
+      let cancelled = false;
+      supabase
+        .from("office_facilities")
+        .select("id, name, office_id, offices(name, country)")
+        .eq("active", true)
+        .order("name")
+        .then(({ data }) => {
+          if (cancelled) return;
+          const rows =
+            (data as Array<{ id: string; name: string; office_id: string; offices: { name: string; country: string } | null }> | null) ??
+            [];
+          setOfficeFacilities(
+            rows.map((f) => ({
+              id: f.id,
+              name: f.name,
+              label: `${f.name} (${f.offices?.name ?? "?"})`,
+              officeId: f.office_id,
+            }))
+          );
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const officeId = profile?.office_id;
     if (officeId) {
       // Cuenta con oficina asignada: solo las instalaciones de esa oficina,
@@ -212,14 +248,13 @@ export default function CheckIn() {
       return;
     }
 
-    // office_id null = superadmin, o un admin sin oficina asignada -- no
-    // hay una oficina propia que filtre esto, así que se detecta el país
-    // por IP (mismo mecanismo que el pre-registro público, vía
-    // getClientCountry() en public-preregister) y se muestran solo las
-    // instalaciones de las oficinas de ESE país -- no las de todos los
-    // países mezcladas: si estás en México debe salir Envia.com/Local 3,
-    // si estás en España debe salir Envia.com/Fulfillment, nunca las 4
-    // juntas.
+    // office_id null = admin sin oficina asignada -- no hay una oficina
+    // propia que filtre esto, así que se detecta el país por IP (mismo
+    // mecanismo que el pre-registro público, vía getClientCountry() en
+    // public-preregister) y se muestran solo las instalaciones de las
+    // oficinas de ESE país -- no las de todos los países mezcladas: si
+    // estás en México debe salir Envia.com/Local 3, si estás en España debe
+    // salir Envia.com/Fulfillment, nunca las 4 juntas.
     let cancelled = false;
     supabase.functions.invoke("public-preregister", { body: { action: "offices" } }).then(async ({ data }) => {
       if (cancelled) return;
@@ -269,7 +304,7 @@ export default function CheckIn() {
     return () => {
       cancelled = true;
     };
-  }, [profile?.office_id]);
+  }, [profile?.office_id, isSuperadmin]);
 
   useEffect(() => {
     // Sin filtrar por empresa a propósito: quien recibe puede ser cualquier
@@ -341,7 +376,10 @@ export default function CheckIn() {
   }, []);
 
   async function handleCheckout(visit: InsideVisit) {
-    if (!session?.user) return;
+    if (!session?.user) {
+      setCheckoutError("Tu sesión expiró. Vuelve a iniciar sesión e intenta de nuevo.");
+      return;
+    }
 
     setCheckoutError(null);
 
@@ -403,6 +441,7 @@ export default function CheckIn() {
     if (!scannerOpen) return;
 
     const scanner = new Html5Qrcode(QR_REGION_ID);
+    let cancelled = false;
 
     scanner
       .start(
@@ -414,13 +453,38 @@ export default function CheckIn() {
         },
         () => {}
       )
-      .catch(() => setScanError("No se pudo acceder a la cámara."));
+      .catch(() => {
+        if (!cancelled) setScanError("No se pudo acceder a la cámara.");
+      });
 
     return () => {
-      scanner
-        .stop()
-        .catch(() => {})
-        .finally(() => scanner.clear());
+      cancelled = true;
+      // scanner.stop() puede tronar de forma SÍNCRONA (no solo rechazar su
+      // promesa) si se cancela/desmonta antes de que start() terminara de
+      // iniciar la cámara (permiso denegado, o "Cancelar escaneo" muy
+      // rápido) -- sin este try/catch esa excepción escapaba del cleanup
+      // del efecto, React desmontaba todo el árbol, y el ErrorBoundary
+      // global mostraba "Algo salió mal" al navegar a otra sección después
+      // de cancelar. clear() además solo se llama si el contenedor del
+      // lector sigue en el DOM: si scannerOpen ya cambió a false en el
+      // mismo render que desmontó esta pantalla, React ya lo quitó y
+      // html5-qrcode no debe tocar un nodo que ya no existe.
+      try {
+        const state = scanner.getState();
+        const wasRunning =
+          state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED;
+        const clearIfPresent = () => {
+          if (document.getElementById(QR_REGION_ID)) scanner.clear();
+        };
+        if (wasRunning) {
+          scanner.stop().catch(() => {}).finally(clearIfPresent);
+        } else {
+          clearIfPresent();
+        }
+      } catch {
+        // Cancelar/desmontar nunca debe tronar la pantalla, aunque
+        // html5-qrcode lance algo inesperado aquí.
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scannerOpen]);
@@ -512,6 +576,7 @@ export default function CheckIn() {
 
   function resetForm() {
     setAttemptedSubmit(false);
+    setSlackWarning(null);
     setVisitorName("");
     setVisitorCompany("");
     setVisitorPhone("");
@@ -558,6 +623,40 @@ export default function CheckIn() {
       setError("Selecciona la empresa anfitriona.");
       return;
     }
+
+    // Los campos de texto de abajo eran "required" solo a nivel HTML, que
+    // considera "   " (puros espacios) un valor válido -- un tester
+    // confirmó que así se puede registrar una visita con nombre/empresa/
+    // motivo en blanco. Se valida el valor recortado, y se guarda ESE valor
+    // recortado (no el original con espacios de sobra).
+    const trimmedVisitorName = visitorName.trim();
+    const trimmedVisitorCompany = visitorCompany.trim();
+    const trimmedReason = reason.trim();
+
+    if (!trimmedVisitorName) {
+      setError("Escribe el nombre del visitante.");
+      return;
+    }
+    if (!isValidName(trimmedVisitorName)) {
+      setError(NAME_INVALID_MESSAGE);
+      return;
+    }
+    if (!trimmedVisitorCompany) {
+      setError("Escribe la empresa del visitante.");
+      return;
+    }
+    if (!hostEmployeeId) {
+      setError("Selecciona el colaborador que recibe.");
+      return;
+    }
+    if (!trimmedReason) {
+      setError("Escribe el motivo de la visita.");
+      return;
+    }
+    if (visitorEmail && !isValidEmailFormat(visitorEmail)) {
+      setError(EMAIL_INVALID_MESSAGE);
+      return;
+    }
     if (!visitorPhotoUploaded || !idPhotoUploaded) {
       setError("Debes capturar la foto del visitante y la foto del INE.");
       return;
@@ -575,6 +674,7 @@ export default function CheckIn() {
     }
 
     setSubmitting(true);
+    setSlackWarning(null);
 
     // Las fotos ya se subieron al elegirlas (PhotoUploadField) — misma ruta
     // que se usó entonces, calculada igual con selectedCompanyId +
@@ -586,17 +686,17 @@ export default function CheckIn() {
       .from("visits")
       .insert({
         company_id: selectedCompanyId,
-        visitor_name: visitorName,
-        visitor_company: visitorCompany || null,
+        visitor_name: trimmedVisitorName,
+        visitor_company: trimmedVisitorCompany,
         visitor_phone: visitorPhone || null,
         visitor_email: visitorEmail || null,
-        host_employee_id: hostEmployeeId || null,
+        host_employee_id: hostEmployeeId,
         visit_type: resolvedVisitType,
         has_vehicle: hasVehicle,
         vehicle_plate: hasVehicle ? vehiclePlate || null : null,
         vehicle_color: hasVehicle ? vehicleColor || null : null,
         vehicle_model: hasVehicle ? vehicleModel || null : null,
-        reason: reason || null,
+        reason: trimmedReason,
         division: hasDivisions ? division || null : null,
         // visit_date se manda explícitamente: el default de la columna es
         // current_date, que Postgres evalúa en la zona de la BD (UTC), así
@@ -610,18 +710,24 @@ export default function CheckIn() {
         // llave ni siquiera se manda, para no romper el insert completo
         // (PostgREST rechaza la fila entera si nombra una columna que no
         // existe en el esquema).
-        ...(hasFacilities ? { facility: facility || null } : {}),
-        // "Envia.com" existe tanto en Monterrey como en Madrid -- sin
-        // guardar la oficina, Historial no podría distinguir de cuál es un
-        // visitante cuando superadmin ve todo mezclado. Prioriza la oficina
-        // fija de la cuenta (siempre correcta si existe); si la cuenta no
-        // tiene una (superadmin/admin sin restricción), usa la de la
-        // instalación elegida. El find() empareja por NOMBRE de
-        // instalación -- hoy es seguro porque cada país tiene una sola
-        // oficina activa, pero si algún día un país tiene dos oficinas con
-        // una instalación del mismo nombre, esto tomaría la primera que
-        // encuentre en vez de la que realmente eligió el visitante.
-        office_id: profile?.office_id ?? officeFacilities.find((f) => f.name === facility)?.officeId ?? null,
+        //
+        // matchedFacility se busca por LABEL (lo que de verdad guarda
+        // `facility` en el estado, ver el <select> más abajo), nunca por
+        // nombre plano: para superadmin el label incluye la oficina entre
+        // paréntesis ("Envia.com (Madrid)") para desambiguar, porque
+        // "Envia.com" existe tanto en Monterrey como en Madrid. Se guarda
+        // matchedFacility.name (el nombre limpio) en la columna facility,
+        // no el label completo -- así Historial.tsx sigue mostrando
+        // "Envia.com" igual que para cualquier otra cuenta, y el país lo
+        // distingue aparte con la bandera de office_id.
+        ...(hasFacilities ? { facility: matchedFacility?.name ?? facility ?? null } : {}),
+        // Prioriza la oficina fija de la cuenta (siempre correcta si
+        // existe) SOLO si no es superadmin -- un superadmin nunca debe
+        // quedar atado a la oficina de su propio perfil, aunque la tenga
+        // asignada: usa siempre la de la instalación que de verdad eligió.
+        // Si la cuenta no tiene oficina propia (superadmin, o admin sin
+        // restricción), usa la de la instalación elegida.
+        office_id: (!isSuperadmin && profile?.office_id) || matchedFacility?.officeId || null,
         visitor_photo_path: visitorPhotoPath,
         id_photo_path: idPhotoPath,
         created_by: session.user.id,
@@ -655,9 +761,17 @@ export default function CheckIn() {
     }
 
     // No bloquea el registro de la visita si Slack falla o tarda: es un
-    // aviso de mejor esfuerzo, no parte del flujo crítico de check-in.
-    supabase.functions.invoke("notify-slack", { body: { visitId: data.id } }).then(({ error: notifyError }) => {
-      if (notifyError) console.error("No se pudo notificar por Slack:", notifyError);
+    // aviso de mejor esfuerzo, no parte del flujo crítico de check-in. Pero
+    // SÍ se le avisa a recepción si falló -- antes esto quedaba solo en
+    // consola (nadie lo veía) y notify-slack regresa 200 con
+    // { skipped: "..." } incluso cuando no mandó nada (colaborador sin
+    // slack_id, token no configurado, etc.), así que un simple chequeo de
+    // "error" no bastaba para detectarlo.
+    supabase.functions.invoke("notify-slack", { body: { visitId: data.id } }).then(({ data: notifyData, error: notifyError }) => {
+      if (notifyError || notifyData?.skipped) {
+        console.error("No se pudo notificar por Slack:", notifyError ?? notifyData?.skipped);
+        setSlackWarning("La visita se registró, pero no se pudo avisar por Slack a quien recibe.");
+      }
     });
 
     setFolio(data.folio);
@@ -676,6 +790,12 @@ export default function CheckIn() {
   const companyName = companies.find((company) => company.id === selectedCompanyId)?.name ?? null;
   const hasDivisions = divisions.length > 0;
   const hasFacilities = officeFacilities.length > 0;
+  // `facility` (el estado) guarda el LABEL mostrado en el <select> (no el
+  // nombre plano) para poder desambiguar "Envia.com (Madrid)" de
+  // "Envia.com (Monterrey)" cuando superadmin ve instalaciones de varios
+  // países a la vez -- este es el único lugar que lo resuelve de vuelta a
+  // su nombre limpio y su oficina real, para el insert de la visita.
+  const matchedFacility = officeFacilities.find((f) => f.label === facility);
 
   return (
     <div className="min-h-screen bg-paper">
@@ -840,7 +960,7 @@ export default function CheckIn() {
                       required
                       disabled={!!folio}
                       value={visitorName}
-                      onChange={(e) => setVisitorName(e.target.value)}
+                      onChange={(e) => setVisitorName(filterNameInput(e.target.value))}
                       className={inputClass}
                     />
                     {flaggedWarning && (
@@ -1007,7 +1127,7 @@ export default function CheckIn() {
                       inputMode="numeric"
                       disabled={!!folio}
                       value={visitorPhone}
-                      onChange={(e) => setVisitorPhone(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => setVisitorPhone(filterPhoneInput(e.target.value))}
                       className={inputClass}
                     />
                   </div>
@@ -1021,7 +1141,7 @@ export default function CheckIn() {
                       type="email"
                       disabled={!!folio}
                       value={visitorEmail}
-                      onChange={(e) => setVisitorEmail(e.target.value)}
+                      onChange={(e) => setVisitorEmail(filterEmailInput(e.target.value))}
                       className={inputClass}
                     />
                   </div>
@@ -1167,6 +1287,7 @@ export default function CheckIn() {
               </div>
 
               {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+              {slackWarning && <p className="mt-3 text-sm text-warn">{slackWarning}</p>}
 
               <button
                 type="submit"
@@ -1197,8 +1318,8 @@ export default function CheckIn() {
         open={!!checkoutTarget}
         title="¿Registrar la salida de este visitante?"
         message={checkoutTarget ? `Se registrará la salida de ${checkoutTarget.visitor_name}.` : undefined}
-        onConfirm={() => {
-          if (checkoutTarget) handleCheckout(checkoutTarget);
+        onConfirm={async () => {
+          if (checkoutTarget) await handleCheckout(checkoutTarget);
           setCheckoutTarget(null);
         }}
         onCancel={() => {

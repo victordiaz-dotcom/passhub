@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { MoreVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
@@ -7,7 +8,34 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TableSkeletonRows } from "@/components/Skeleton";
 import { copyToClipboard } from "@/lib/clipboard";
 import { COUNTRY_FLAGS, COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
+import { isValidName, NAME_INVALID_MESSAGE } from "@/lib/nameValidation";
+import {
+  filterNameInput,
+  filterEmailInput,
+  filterUsernameInput,
+  isValidEmailFormat,
+  EMAIL_INVALID_MESSAGE,
+  USERNAME_INVALID_MESSAGE,
+} from "@/lib/inputFilters";
 import type { Tables } from "@/integrations/supabase/types";
+
+// Debe ser la MISMA lista que ALLOWED_EMAIL_DOMAINS en
+// supabase/functions/create-user/index.ts -- esto es solo un aviso rápido en
+// el formulario; la función de borde es la que de verdad lo exige del lado
+// del servidor.
+const ALLOWED_EMAIL_DOMAINS = ["tendencys.com", "ecartpay.com", "parapaquetes.com", "envia.com"];
+
+function emailDomainAllowed(email: string): boolean {
+  const trimmed = email.trim().toLowerCase();
+  const at = trimmed.lastIndexOf("@");
+  if (at === -1) return false;
+  return ALLOWED_EMAIL_DOMAINS.includes(trimmed.slice(at + 1));
+}
+
+const USERNAME_RE = /^[a-z0-9._-]+$/;
+function isValidUsername(value: string): boolean {
+  return USERNAME_RE.test(value);
+}
 
 type Account = Tables<"profiles"> & {
   companies: Pick<Tables<"companies">, "name"> | null;
@@ -71,8 +99,37 @@ export default function Users() {
   // mayoría de las veces no se va a usar. Editar una cuenta existente
   // siempre despliega el formulario (ver más abajo), sin depender de esto.
   const [showCreateForm, setShowCreateForm] = useState(false);
+  // Errores de campo mostrados EN VIVO (al salir del campo, no solo hasta
+  // darle a "Crear cuenta") -- se marca "tocado" al perder el foco y desde
+  // ahí el mensaje se recalcula en cada tecla, así que se ve y se quita
+  // solo, sin esperar al envío del formulario.
+  const [touched, setTouched] = useState({ fullName: false, email: false, username: false });
+  function touch(field: keyof typeof touched) {
+    setTouched((t) => ({ ...t, [field]: true }));
+  }
+  const fullNameError = touched.fullName && form.fullName && !isValidName(form.fullName) ? NAME_INVALID_MESSAGE : null;
+  const emailError = touched.email && form.email && !isValidEmailFormat(form.email) ? EMAIL_INVALID_MESSAGE : null;
+  const usernameError =
+    touched.username && form.username && !isValidUsername(form.username) ? USERNAME_INVALID_MESSAGE : null;
+
+  // Filtro de país para la lista de cuentas -- solo tiene sentido para
+  // superadmin: un admin ya solo ve (por RLS) las cuentas de su propia
+  // oficina, así que nunca tendría nada que filtrar.
+  const [accountCountryFilter, setAccountCountryFilter] = useState("");
+
+  // Menú de acciones por fila (Editar / Restablecer / Activar-Desactivar) --
+  // antes eran 3 botones de texto apilados, que obligaban a la tabla a
+  // desbordarse horizontalmente (scroll) para caber junto con las demás
+  // columnas. Un solo ícono que abre un menú angosto evita ese scroll sin
+  // quitar ninguna acción.
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const isEditing = editingId !== null;
+
+  const visibleAccounts =
+    isSuperadmin && accountCountryFilter
+      ? accounts.filter((account) => account.offices?.country === accountCountryFilter)
+      : accounts;
 
   async function loadAccounts() {
     setLoading(true);
@@ -149,6 +206,7 @@ export default function Users() {
     setForm(emptyForm);
     setError(null);
     setShowCreateForm(false);
+    setTouched({ fullName: false, email: false, username: false });
   }
 
   async function handleCreate() {
@@ -257,6 +315,32 @@ export default function Users() {
     e.preventDefault();
     setError(null);
 
+    if (!isValidName(form.fullName)) {
+      setError(NAME_INVALID_MESSAGE);
+      return;
+    }
+
+    if (!isValidEmailFormat(form.email)) {
+      setError(EMAIL_INVALID_MESSAGE);
+      return;
+    }
+
+    if (!isValidUsername(form.username)) {
+      setError(USERNAME_INVALID_MESSAGE);
+      return;
+    }
+
+    // El dominio permitido solo se exige al CREAR una cuenta nueva -- no al
+    // editar una ya existente, para no bloquear la edición de cuentas que ya
+    // están dadas de alta con otro correo (y no forzar a cambiarlo solo para
+    // poder guardar un cambio de nombre/empresa/rol que no toca el correo).
+    if (!isEditing && !emailDomainAllowed(form.email)) {
+      setError(
+        `Solo se permiten correos de: ${ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(", ")}.`
+      );
+      return;
+    }
+
     if (!form.companyId) {
       setError("Selecciona una empresa.");
       return;
@@ -283,6 +367,7 @@ export default function Users() {
     setEditingId(null);
     setForm(emptyForm);
     setShowCreateForm(false);
+    setTouched({ fullName: false, email: false, username: false });
     loadAccounts();
   }
 
@@ -372,9 +457,11 @@ export default function Users() {
           type="text"
           required
           value={form.fullName}
-          onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+          onChange={(e) => setForm({ ...form, fullName: filterNameInput(e.target.value) })}
+          onBlur={() => touch("fullName")}
           className="input-field h-auto py-2"
         />
+        {fullNameError && <p className="mt-1 text-xs text-danger">{fullNameError}</p>}
       </div>
 
       <div>
@@ -386,9 +473,11 @@ export default function Users() {
           type="email"
           required
           value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          onChange={(e) => setForm({ ...form, email: filterEmailInput(e.target.value) })}
+          onBlur={() => touch("email")}
           className="input-field h-auto py-2"
         />
+        {emailError && <p className="mt-1 text-xs text-danger">{emailError}</p>}
         {isEditing && form.email !== editingOriginalEmail && (
           <p className="mt-1 text-xs text-ink-soft">
             Se actualizará el correo de acceso de esta cuenta al guardar.
@@ -405,9 +494,11 @@ export default function Users() {
           type="text"
           required
           value={form.username}
-          onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().trim() })}
+          onChange={(e) => setForm({ ...form, username: filterUsernameInput(e.target.value) })}
+          onBlur={() => touch("username")}
           className="input-field h-auto py-2"
         />
+        {usernameError && <p className="mt-1 text-xs text-danger">{usernameError}</p>}
         <p className="mt-1 text-xs text-ink-soft">Con esto (o el correo) inicia sesión.</p>
       </div>
 
@@ -593,35 +684,55 @@ export default function Users() {
       <h1 className="mb-6 font-display text-xl font-bold text-ink">Cuentas</h1>
 
       {tempPasswordInfo && (
-        <div className="mb-6 rounded-lg border border-warn bg-warn-tint p-4">
-          <p className="text-sm font-medium text-ink">
-            Contraseña {tempPasswordInfo.context} para{" "}
-            <span className="font-bold">{tempPasswordInfo.email}</span>
-          </p>
-          <p className="mt-2 text-sm text-ink-soft">Contraseña temporal (solo se muestra una vez):</p>
-          <div className="mt-1 flex items-center gap-2">
-            <p className="font-display text-lg font-bold text-ink">{tempPasswordInfo.tempPassword}</p>
-            <button
-              type="button"
-              onClick={async () => {
-                const ok = await copyToClipboard(tempPasswordInfo.tempPassword);
-                setCopied(ok);
-              }}
-              className="btn-secondary h-auto px-2 py-1 text-xs"
-            >
-              {copied === true ? "¡Copiada!" : copied === false ? "No se pudo, selecciónala" : "Copiar"}
-            </button>
+        // Mismo patrón de ventana que "Editar cuenta" / "Restablecer
+        // contraseña" (overlay + tarjeta centrada) -- antes esto era un
+        // aviso pegado arriba de la página, fácil de perder de vista sobre
+        // todo si ya se había cerrado el modal de restablecer.
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+          onClick={() => setTempPasswordInfo(null)}
+        >
+          <div className="modal max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-display text-lg font-bold text-ink">
+              Contraseña {tempPasswordInfo.context}
+            </h2>
+            <p className="mt-3 text-sm text-ink-soft">
+              Para <span className="font-medium text-ink">{tempPasswordInfo.email}</span>
+            </p>
+
+            <div className="mt-6 rounded-xl border border-line bg-surface-soft p-5">
+              <p className="text-sm text-ink-soft">Contraseña temporal (solo se muestra una vez):</p>
+              <div className="mt-3 flex items-center gap-3">
+                <p className="font-display text-2xl font-bold tracking-wide text-ink">
+                  {tempPasswordInfo.tempPassword}
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await copyToClipboard(tempPasswordInfo.tempPassword);
+                    setCopied(ok);
+                  }}
+                  className="btn-secondary h-auto px-2 py-1 text-xs"
+                >
+                  {copied === true ? "¡Copiada!" : copied === false ? "No se pudo, selecciónala" : "Copiar"}
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-ink-soft">
+              Cópiala y entrégasela en persona o por un canal seguro.
+            </p>
+
+            <div className="mt-8 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setTempPasswordInfo(null)}
+                className="btn-primary"
+              >
+                Entendido
+              </button>
+            </div>
           </div>
-          <p className="mt-2 text-xs text-ink-soft">
-            Cópiala y entrégasela en persona o por un canal seguro.
-          </p>
-          <button
-            type="button"
-            onClick={() => setTempPasswordInfo(null)}
-            className="mt-3 text-sm font-medium text-accent hover:text-accent-dark"
-          >
-            Entendido
-          </button>
         </div>
       )}
 
@@ -661,50 +772,92 @@ export default function Users() {
         </div>
       )}
 
-      <h2 className="mb-4 font-display text-base font-bold text-ink">Cuentas registradas</h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-base font-bold text-ink">Cuentas registradas</h2>
+        {isSuperadmin && (
+          <div>
+            <label htmlFor="accountCountryFilter" className="mb-1 block text-xs font-medium text-ink-soft">
+              País
+            </label>
+            <select
+              id="accountCountryFilter"
+              value={accountCountryFilter}
+              onChange={(e) => setAccountCountryFilter(e.target.value)}
+              className="input-field h-auto py-2"
+            >
+              <option value="">Todas</option>
+              {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
+                <option key={code} value={code}>
+                  {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       <div className="card overflow-x-auto p-0">
-        <table className="w-full min-w-[900px] text-left text-sm">
+        {/* table-fixed + un ancho por columna (en vez de que cada columna
+            crezca a lo que pida su contenido, como con el table-auto de
+            antes) -- así un correo o nombre largo se trunca (con "..." y
+            title= para ver el texto completo al pasar el mouse) en vez de
+            estirar la tabla más allá del ancho de la tarjeta, que era lo
+            que obligaba al scroll horizontal aun en pantallas anchas. */}
+        <table className="w-full table-fixed text-left text-sm">
           <thead>
             <tr className="tbl-head border-b border-line text-ink-soft">
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Nombre</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Usuario</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Correo</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Empresa</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Oficina</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Rol</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
-              <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Acciones</th>
+              <th className="w-[16%] px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Nombre</th>
+              <th className="w-[12%] px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Usuario</th>
+              <th className="w-[22%] px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Correo</th>
+              <th className="w-[16%] px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Empresa</th>
+              <th className="w-[12%] px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Oficina</th>
+              <th className="w-[9%] px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Rol</th>
+              <th className="w-[9%] px-4 py-3 text-[10px] font-bold uppercase tracking-widest">Estado</th>
+              <th className="w-[4%] px-2 py-3 text-[10px] font-bold uppercase tracking-widest">
+                <span className="sr-only">Acciones</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {loading && <TableSkeletonRows rows={5} columns={8} />}
-            {!loading && accounts.length === 0 && (
+            {!loading && visibleAccounts.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-ink-soft">
-                  No hay cuentas registradas.
+                  {accounts.length === 0
+                    ? "No hay cuentas registradas."
+                    : "No hay cuentas que coincidan con este filtro."}
                 </td>
               </tr>
             )}
-            {accounts.map((account) => {
+            {visibleAccounts.map((account) => {
               const isSelf = account.id === session?.user.id;
               const accountIsElevated = account.user_roles.some(
                 (r) => r.role === "admin" || r.role === "superadmin"
               );
               const canEditAccount = isSuperadmin || !accountIsElevated;
+              const officeLabel = account.offices
+                ? `${COUNTRY_FLAGS[account.offices.country] ?? ""} ${account.offices.name}`
+                : "—";
+              const roleLabel = account.user_roles.map((r) => ROLE_LABELS[r.role] ?? r.role).join(", ") || "—";
               return (
                 <tr key={account.id} className="border-b border-line last:border-0">
-                  <td className="px-4 py-3 text-ink">{account.full_name}</td>
-                  <td className="px-4 py-3 text-ink-soft">{account.username}</td>
-                  <td className="px-4 py-3 text-ink-soft">{account.email}</td>
-                  <td className="px-4 py-3 text-ink-soft">{account.companies?.name ?? "—"}</td>
-                  <td className="px-4 py-3 text-ink-soft">
-                    {account.offices
-                      ? `${COUNTRY_FLAGS[account.offices.country] ?? ""} ${account.offices.name}`
-                      : "—"}
+                  <td className="truncate px-4 py-3 text-ink" title={account.full_name}>
+                    {account.full_name}
                   </td>
-                  <td className="px-4 py-3 text-ink-soft">
-                    {account.user_roles.map((r) => ROLE_LABELS[r.role] ?? r.role).join(", ") || "—"}
+                  <td className="truncate px-4 py-3 text-ink-soft" title={account.username}>
+                    {account.username}
+                  </td>
+                  <td className="truncate px-4 py-3 text-ink-soft" title={account.email}>
+                    {account.email}
+                  </td>
+                  <td className="truncate px-4 py-3 text-ink-soft" title={account.companies?.name ?? "—"}>
+                    {account.companies?.name ?? "—"}
+                  </td>
+                  <td className="truncate px-4 py-3 text-ink-soft" title={officeLabel}>
+                    {officeLabel}
+                  </td>
+                  <td className="truncate px-4 py-3 text-ink-soft" title={roleLabel}>
+                    {roleLabel}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -715,49 +868,83 @@ export default function Users() {
                       {account.active ? "Activo" : "Suspendido"}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
-                    <div className="flex flex-col items-start gap-1.5">
-                      <button
-                        type="button"
-                        disabled={!canEditAccount}
-                        title={canEditAccount ? undefined : "Solo un super admin puede editar cuentas de admin/super admin."}
-                        onClick={() => startEdit(account)}
-                        className="text-sm font-medium text-accent hover:text-accent-dark disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Editar
-                      </button>
-                      {canEditAccount && (
-                        <button
-                          type="button"
-                          disabled={resettingId === account.id}
-                          onClick={() => openResetDialog(account)}
-                          className="text-sm font-medium text-ink-soft hover:text-ink disabled:opacity-50"
+                  <td className="relative px-2 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setOpenMenuId(openMenuId === account.id ? null : account.id)}
+                      aria-label="Acciones"
+                      aria-haspopup="menu"
+                      aria-expanded={openMenuId === account.id}
+                      className="rounded-md p-1.5 text-ink-soft hover:bg-line hover:text-ink"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                    {openMenuId === account.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                        <div
+                          role="menu"
+                          className="absolute right-4 top-full z-20 mt-1 w-56 rounded-lg border border-line bg-card p-1.5 shadow-lg"
                         >
-                          {resettingId === account.id ? "Restableciendo..." : "Restablecer contraseña"}
-                        </button>
-                      )}
-                      {isSuperadmin && (
-                        <button
-                          type="button"
-                          disabled={isSelf || togglingId === account.id}
-                          title={
-                            isSelf
-                              ? "No puedes desactivar tu propia cuenta."
-                              : account.active
-                                ? "Bloquea el acceso de la persona. No borra su cuenta ni su historial."
-                                : "Restaura su acceso."
-                          }
-                          onClick={() => handleToggleClick(account)}
-                          className="text-sm font-medium text-ink-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          {togglingId === account.id
-                            ? "Actualizando..."
-                            : account.active
-                              ? "Desactivar"
-                              : "Activar"}
-                        </button>
-                      )}
-                    </div>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={!canEditAccount}
+                            title={
+                              canEditAccount
+                                ? undefined
+                                : "Solo un super admin puede editar cuentas de admin/super admin."
+                            }
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              startEdit(account);
+                            }}
+                            className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-ink hover:bg-line disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Editar
+                          </button>
+                          {canEditAccount && (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              disabled={resettingId === account.id}
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                openResetDialog(account);
+                              }}
+                              className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-ink hover:bg-line disabled:opacity-50"
+                            >
+                              {resettingId === account.id ? "Restableciendo..." : "Restablecer contraseña"}
+                            </button>
+                          )}
+                          {isSuperadmin && (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              disabled={isSelf || togglingId === account.id}
+                              title={
+                                isSelf
+                                  ? "No puedes desactivar tu propia cuenta."
+                                  : account.active
+                                    ? "Bloquea el acceso de la persona. No borra su cuenta ni su historial."
+                                    : "Restaura su acceso."
+                              }
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                handleToggleClick(account);
+                              }}
+                              className="block w-full rounded-md px-3 py-2 text-left text-sm font-medium text-ink hover:bg-line disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {togglingId === account.id
+                                ? "Actualizando..."
+                                : account.active
+                                  ? "Desactivar"
+                                  : "Activar"}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </td>
                 </tr>
               );

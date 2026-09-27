@@ -253,6 +253,16 @@ export default function AuditLog() {
           detail?.old?.field_key;
         return name ?? "—";
       }
+      if (row.entity === "visits") {
+        // Antes esta columna siempre salía "—" para visitas (la rama de
+        // abajo solo resuelve profiles/user_roles), lo que hacía parecer
+        // que el registro de una visita real "no aparecía" en Auditoría --
+        // sí aparecía, solo se veía vacío. detail.visitor_name en altas
+        // (audit_visits hace to_jsonb(new)) y detail.new.visitor_name en
+        // actualizaciones (guarda {old, new}).
+        const detail = row.detail as { visitor_name?: string; new?: { visitor_name?: string } } | null;
+        return detail?.visitor_name ?? detail?.new?.visitor_name ?? "—";
+      }
       if (row.entity !== "profiles" && row.entity !== "user_roles") return "—";
       const profile = row.entity_id ? profilesById[row.entity_id] : null;
       if (profile) return `${profile.full_name} (${profile.email})`;

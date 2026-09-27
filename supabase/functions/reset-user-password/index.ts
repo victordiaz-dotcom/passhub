@@ -238,8 +238,10 @@ Deno.serve(async (req) => {
   }
 
   // Mismo criterio que create-user: un admin normal solo puede actuar sobre
-  // cuentas de su propia oficina. Faltaba aquí -- un admin de una oficina
-  // podía restablecer la contraseña de cualquier cuenta de OTRA oficina.
+  // cuentas de su propia oficina. Confirmado con el usuario: no se
+  // restringe por empresa -- varias empresas comparten una misma oficina
+  // física, y quien administra esa oficina debe poder restablecer
+  // contraseñas de cualquiera de ellas.
   if (!callerIsSuperadmin && callerProfile?.office_id) {
     const { data: targetProfile } = await adminClient
       .from("profiles")

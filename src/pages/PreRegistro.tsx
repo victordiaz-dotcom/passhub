@@ -5,6 +5,8 @@ import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { COUNTRY_FLAGS } from "@/lib/countryFlags";
+import { isValidName } from "@/lib/nameValidation";
+import { filterNameInput, filterPhoneInput, filterEmailInput, isValidEmailFormat } from "@/lib/inputFilters";
 import {
   PREREG_T,
   hasStoredLang,
@@ -384,7 +386,7 @@ export default function PreRegistro() {
               inputMode="numeric"
               required={field.required}
               value={form.visitorPhone}
-              onChange={(e) => setForm({ ...form, visitorPhone: e.target.value.replace(/\D/g, "") })}
+              onChange={(e) => setForm({ ...form, visitorPhone: filterPhoneInput(e.target.value) })}
               className="input-field h-auto py-2"
             />
           </div>
@@ -400,7 +402,7 @@ export default function PreRegistro() {
               type="email"
               required={field.required}
               value={form.visitorEmail}
-              onChange={(e) => setForm({ ...form, visitorEmail: e.target.value })}
+              onChange={(e) => setForm({ ...form, visitorEmail: filterEmailInput(e.target.value) })}
               className="input-field h-auto py-2"
             />
           </div>
@@ -546,8 +548,23 @@ export default function PreRegistro() {
     e.preventDefault();
     setError(null);
 
+    const trimmedVisitorName = form.visitorName.trim();
+    if (!trimmedVisitorName) {
+      setError(t.errorVisitorName);
+      return;
+    }
+    if (!isValidName(trimmedVisitorName)) {
+      setError(t.errorVisitorNameInvalid);
+      return;
+    }
+
     if (!form.companyId) {
       setError(t.errorCompany);
+      return;
+    }
+
+    if (form.visitorEmail && !isValidEmailFormat(form.visitorEmail)) {
+      setError(t.errorVisitorEmailInvalid);
       return;
     }
 
@@ -575,7 +592,14 @@ export default function PreRegistro() {
     setSubmitting(true);
 
     const { data, error: invokeError } = await supabase.functions.invoke("public-preregister", {
-      body: { action: "create", ...form, officeId, visitType: resolvedVisitType, customAnswers },
+      body: {
+        action: "create",
+        ...form,
+        visitorName: trimmedVisitorName,
+        officeId,
+        visitType: resolvedVisitType,
+        customAnswers,
+      },
     });
 
     setSubmitting(false);
@@ -666,7 +690,7 @@ export default function PreRegistro() {
               type="text"
               required
               value={form.visitorName}
-              onChange={(e) => setForm({ ...form, visitorName: e.target.value })}
+              onChange={(e) => setForm({ ...form, visitorName: filterNameInput(e.target.value) })}
               className="input-field h-auto py-2"
             />
           </div>
