@@ -15,6 +15,7 @@ import Dashboard from "@/pages/Dashboard";
 import Historial from "@/pages/Historial";
 import Employees from "@/pages/Employees";
 import Users from "@/pages/Users";
+import AuditLog from "@/pages/AuditLog";
 import Catalogs from "@/pages/Catalogs";
 
 // Redirect de cualquier liga vieja con el token en la RUTA -- ya sea la
@@ -127,7 +128,16 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/audit-log" element={<Navigate to="/" replace />} />
+        <Route
+          path="/audit-log"
+          element={
+            <ProtectedRoute allowedRoles={["superadmin"]}>
+              <Layout>
+                <AuditLog />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </>
   );
