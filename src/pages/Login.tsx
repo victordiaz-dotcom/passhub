@@ -89,12 +89,12 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-      <div className="card w-full max-w-sm p-10">
+    <div className="flex min-h-screen flex-col bg-paper p-6">
+      <div className="card my-auto w-full max-w-sm self-center p-10">
         <div className="mb-8 text-center">
           <img src="/logo.png" alt="PassHub" className="mx-auto mb-3 h-16 w-auto" />
           <h1 className="font-display text-2xl font-bold text-ink">
-            PassHub <span className="text-base font-medium text-ink-soft">{APP_VERSION}</span>
+            PassHub
           </h1>
           <p className="mt-1 text-sm text-ink-soft">Sistema de control de visitas</p>
         </div>
@@ -149,6 +149,9 @@ export default function Login() {
           Las cuentas las crea el administrador. Si no tienes acceso, contacta a tu admin.
         </p>
       </div>
+      <footer className="text-right text-[10px] text-ink-soft" aria-label="Versión de PassHub">
+        {APP_VERSION}
+      </footer>
     </div>
   );
 }

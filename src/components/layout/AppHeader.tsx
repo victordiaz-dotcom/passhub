@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { APP_VERSION } from "@/lib/version";
 import { ROLE_LABELS } from "@/lib/roles";
 import { COUNTRY_FLAGS } from "@/lib/countryFlags";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -17,6 +16,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-white/15 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
   }`;
 
+type OfficeLabel = { name: string; country: string };
+const officeLabelCache = new Map<string, OfficeLabel>();
+
 export function AppHeader() {
   const { profile, roles, isAdmin, isSuperadmin, signOut } = useAuth();
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] ?? "Usuario";
@@ -26,12 +28,16 @@ export function AppHeader() {
   // usa en RLS y en Users.tsx. Se trae el nombre completo (no solo el país)
   // porque México tiene dos oficinas -- con solo la bandera no se distingue
   // CDMX de Monterrey.
-  const [office, setOffice] = useState<{ name: string; country: string } | null>(null);
+  const [office, setOffice] = useState<OfficeLabel | null>(() =>
+    profile?.office_id ? officeLabelCache.get(profile.office_id) ?? null : null
+  );
   // Sin esto, un clic justo después de cargar la página (antes de que
   // resuelva el fetch de abajo) copiaba el link genérico /pre-register en
   // vez de /es o /mx -- exactamente el caso que este botón existe para
   // evitar, silencioso porque "office" sigue siendo null mientras carga.
-  const [officeReady, setOfficeReady] = useState(false);
+  const [officeReady, setOfficeReady] = useState(
+    () => !profile?.office_id || officeLabelCache.has(profile.office_id)
+  );
   const [linkCopied, setLinkCopied] = useState(false);
 
   // Copiar el link de pre-registro debe mandar a la oficina de quien lo
@@ -51,13 +57,15 @@ export function AppHeader() {
   }
 
   useEffect(() => {
-    setOfficeReady(false);
     const officeId = profile?.office_id;
     if (!officeId) {
       setOffice(null);
       setOfficeReady(true);
       return;
     }
+    const cached = officeLabelCache.get(officeId);
+    setOffice(cached ?? null);
+    setOfficeReady(!!cached);
     let cancelled = false;
     supabase
       .from("offices")
@@ -66,6 +74,8 @@ export function AppHeader() {
       .single()
       .then(({ data }) => {
         if (!cancelled) {
+          if (data) officeLabelCache.set(officeId, data);
+          else officeLabelCache.delete(officeId);
           setOffice(data ?? null);
           setOfficeReady(true);
         }
@@ -87,9 +97,6 @@ export function AppHeader() {
         <span className="flex items-center gap-2 font-display text-lg font-bold">
           <img src="/logo.png" alt="PassHub" className="h-7 w-auto" />
           PassHub
-          <span className="rounded bg-white/10 px-1.5 py-0.5 font-sans text-xs font-medium text-white/50">
-            {APP_VERSION}
-          </span>
         </span>
         <div className="flex flex-wrap items-center gap-3">
           <ThemeToggle />

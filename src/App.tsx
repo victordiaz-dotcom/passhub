@@ -3,7 +3,6 @@ import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import { IdleLogout } from "@/components/IdleLogout";
 import { ThemeInitializer } from "@/components/ThemeInitializer";
-import { PageSkeleton } from "@/components/Skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
@@ -30,15 +29,10 @@ function RedirectOldPreregConfirmacion() {
   return <Navigate to={`/pre-register/confirmation${location.search}#${token}`} replace />;
 }
 
-// Guardia es de solo lectura y no tiene nada que hacer en el check-in
-// completo: si la cuenta solo tiene ese rol, "/" le muestra la pantalla de
-// guardia en vez de CheckIn. Hay que esperar "loading" (que ahora incluye
-// la carga de roles, no solo de la sesión — ver useAuth.ts): sin esto, el
-// primer render siempre ocurre con roles=[] y muestra CheckIn de entrada,
-// aunque la cuenta sea de guardia.
+// ProtectedRoute ya espera sesión y roles antes de montar HomeRoute. Guardia
+// ve su panel de solo lectura; los demás roles ven el registro de visitas.
 function HomeRoute() {
-  const { isGuardia, isAdmin, isRecepcion, loading } = useAuth();
-  if (loading) return <PageSkeleton />;
+  const { isGuardia, isAdmin, isRecepcion } = useAuth();
   if (isGuardia && !isAdmin && !isRecepcion) return <Guardia />;
   return (
     <Layout>

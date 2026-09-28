@@ -161,14 +161,14 @@ export default function Guardia() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="flex min-h-screen flex-col bg-white">
       <header className="sticky top-0 z-10 bg-ink text-white">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="PassHub" className="h-8 w-auto" />
             <div>
               <h1 className="font-display text-base font-bold leading-tight">
-                PassHub <span className="text-white/50">{APP_VERSION}</span>
+                PassHub
               </h1>
               <p className="text-xs text-white/50">Guardia</p>
             </div>
@@ -187,7 +187,7 @@ export default function Guardia() {
         </div>
       </header>
 
-      <div className="px-4 py-4">
+      <div className="flex-1 px-4 py-4">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-[#1d1d1f]">
             Personas dentro{visits.length > 0 ? ` (${visits.length})` : ""}
@@ -254,6 +254,10 @@ export default function Guardia() {
           registrar nada.
         </p>
       </div>
+
+      <footer className="px-4 py-2 text-right text-[10px] text-[#6c757d]" aria-label="Versión de PassHub">
+        {APP_VERSION}
+      </footer>
 
       {selectedVisit && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-white">

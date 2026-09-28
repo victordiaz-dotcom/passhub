@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -6,11 +7,12 @@ import type { Tables } from "@/integrations/supabase/types";
 type Profile = Tables<"profiles">;
 type Role = Tables<"user_roles">["role"];
 
-export function useAuth() {
+function useAuthState() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
   // Se separa del check de sesión: sin esto, "loading" pasaba a false en
   // cuanto se resolvía getSession(), ANTES de que profiles/user_roles
   // terminaran de cargar — cualquier componente que decidiera algo por rol
@@ -22,16 +24,22 @@ export function useAuth() {
   const [rolesLoading, setRolesLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
       setSession(data.session);
       setSessionLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (cancelled) return;
       setSession(newSession);
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -51,20 +59,27 @@ export function useAuth() {
     if (!session?.user) {
       setProfile(null);
       setRoles([]);
+      setLoadedUserId(null);
       setRolesLoading(false);
       return;
     }
 
     setRolesLoading(true);
 
+    let cancelled = false;
     Promise.all([
       supabase.from("profiles").select("*").eq("id", session.user.id).single(),
       supabase.from("user_roles").select("role").eq("user_id", session.user.id),
     ]).then(([profileResult, rolesResult]) => {
+      if (cancelled) return;
       setProfile(profileResult.data);
       setRoles((rolesResult.data ?? []).map((r) => r.role));
+      setLoadedUserId(session.user.id);
       setRolesLoading(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [session?.user?.id, sessionLoading]);
 
   const signOut = () => supabase.auth.signOut();
@@ -83,7 +98,24 @@ export function useAuth() {
     isRecepcion: roles.includes("recepcion"),
     isSuperadmin: roles.includes("superadmin"),
     isGuardia: roles.includes("guardia"),
-    loading: sessionLoading || rolesLoading,
+    loading: sessionLoading || rolesLoading || (!!session?.user && loadedUserId !== session.user.id),
     signOut,
   };
+}
+
+type AuthState = ReturnType<typeof useAuthState>;
+const AuthContext = createContext<AuthState | null>(null);
+
+// Mantiene una sola sesión y carga de roles mientras cambian las rutas. Si
+// cada pantalla crea su propio useAuthState, ProtectedRoute vuelve a mostrar
+// PageSkeleton en cada clic del menú y la vista de Registrar visita "salta".
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const auth = useAuthState();
+  return createElement(AuthContext.Provider, { value: auth }, children);
+}
+
+export function useAuth() {
+  const auth = useContext(AuthContext);
+  if (!auth) throw new Error("useAuth debe usarse dentro de AuthProvider");
+  return auth;
 }
