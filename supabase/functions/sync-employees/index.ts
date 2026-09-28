@@ -75,6 +75,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "No autorizado." }, 401);
   }
 
+  const body = await req.json().catch(() => null);
+  const requestedCountry = body?.country;
+  if (requestedCountry !== "MX" && requestedCountry !== "ES") {
+    return jsonResponse({ error: "Selecciona México o España para sincronizar." }, 400);
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -133,13 +139,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Tu cuenta está desactivada." }, 403);
   }
 
-  // Mismo criterio que create-user/reset-user-password/update-user-email y
-  // que las políticas RLS de employees (migración 0091): un admin
-  // no-superadmin con oficina asignada solo puede tocar registros de esa
-  // misma oficina -- sin este filtro, sync-employees (que usa la service
-  // role y por eso ignora esas políticas) le permitía sobrescribir el
-  // directorio de CUALQUIER oficina/país, no solo la propia.
+  // La función usa service role, así que valida aquí el país permitido:
+  // un admin necesita oficina asignada del país que solicita. Superadmin
+  // puede elegir cualquiera de los dos países desde botones separados.
   const callerOfficeId = callerIsSuperadmin ? null : callerProfile.office_id;
+  if (!callerIsSuperadmin && !callerOfficeId) {
+    return jsonResponse({ error: "Tu cuenta no tiene una oficina asignada." }, 403);
+  }
 
   const { data: companies } = await adminClient.from("companies").select("id, name");
   if (!companies || companies.length === 0) {
@@ -164,14 +170,24 @@ Deno.serve(async (req) => {
 
   const { data: offices } = await adminClient.from("offices").select("id, name, country");
 
-  // Un solo office por país (México ahora solo tiene Monterrey, igual que
-  // Colombia/España tienen una sola oficina cada una) — ya no hace falta
-  // distinguir por "city". Si el país no tiene ninguna oficina registrada
-  // en la tabla offices, se deja office_id en null (no se adivina).
+  const targetOffice = offices?.find((office) => office.country === requestedCountry);
+  if (!targetOffice) {
+    return jsonResponse({ error: "No hay una oficina registrada para ese país." }, 400);
+  }
+  if (!callerIsSuperadmin && !offices?.some(
+    (office) => office.id === callerOfficeId && office.country === requestedCountry
+  )) {
+    return jsonResponse({ error: "Solo puedes sincronizar colaboradores de tu país." }, 403);
+  }
+
+  // Francia e Italia se atienden desde la oficina de España. Conservamos
+  // su country real para el filtro, pero les asignamos la oficina española
+  // para que el admin de España los vea conforme a RLS.
   function resolveOfficeId(country: unknown): string | null {
     const countryCode = typeof country === "string" ? country.trim().toUpperCase() : "";
     if (!countryCode || !offices) return null;
-    return offices.find((o) => o.country === countryCode)?.id ?? null;
+    const officeCountry = countryCode === "FR" || countryCode === "IT" ? "ES" : countryCode;
+    return offices.find((o) => o.country === officeCountry)?.id ?? null;
   }
 
   let slackUsers: Array<Record<string, unknown>>;
@@ -286,13 +302,11 @@ Deno.serve(async (req) => {
     "hr latam",
   ]);
 
-  // Solo personas activas, con slack_id y real_name válidos, que no
-  // parezcan una cuenta de puesto/rol genérico, y de un país con oficina
-  // registrada en PassHub (MX, CO, ES por ahora — ver tabla offices) — el
-  // directorio de Slack incluye personal de otros países (AR, IN, etc.)
-  // que todavía no tienen oficina asignada en el sistema, así que se
-  // siguen dejando fuera para no mostrar colaboradores sin office_id.
-  const SYNCED_COUNTRIES = new Set(["MX", "CO", "ES"]);
+  // España incluye Francia e Italia, que comparten la oficina de Madrid.
+  // México se sincroniza en una llamada independiente.
+  const syncedCountries = new Set(
+    requestedCountry === "ES" ? ["ES", "FR", "IT"] : ["MX"]
+  );
   const validUsers = slackUsers.filter(
     (u) =>
       u.status === "active" &&
@@ -304,16 +318,14 @@ Deno.serve(async (req) => {
       !PLACEHOLDER_TEAM_LEAD_PREFIX.test((u.real_name as string).trim()) &&
       !PLACEHOLDER_EXACT_NAMES.has((u.real_name as string).trim().toLowerCase()) &&
       typeof u.country === "string" &&
-      SYNCED_COUNTRIES.has(u.country)
+      syncedCountries.has(u.country.trim().toUpperCase())
   );
 
   if (validUsers.length === 0) {
     return jsonResponse({ synced: 0, warning: "El directorio de Slack no devolvió personas activas válidas." });
   }
 
-  // Filtrado por oficina ANTES de armar las filas del upsert (no después):
-  // un admin de una sola oficina nunca debe siquiera calcular filas para
-  // otro país, mucho menos escribirlas.
+  // Restringimos también por oficina antes de construir cualquier upsert.
   const scopedUsers = callerOfficeId
     ? validUsers.filter((u) => resolveOfficeId(u.country) === callerOfficeId)
     : validUsers;
@@ -321,7 +333,7 @@ Deno.serve(async (req) => {
   if (scopedUsers.length === 0) {
     return jsonResponse({
       synced: 0,
-      warning: "El directorio de Slack no tiene personas de tu propia oficina para sincronizar.",
+      warning: "El directorio de Slack no tiene personas de ese país para sincronizar.",
     });
   }
 
@@ -361,13 +373,32 @@ Deno.serve(async (req) => {
     const full_name = (u.real_name as string).trim();
     const email = emailBySlackId.get(slackId);
     const company_id = resolveCompanyId(u.organization);
-    const country = typeof u.country === "string" && u.country.trim() ? u.country.trim() : null;
+    const country = typeof u.country === "string" && u.country.trim() ? u.country.trim().toUpperCase() : null;
     const office_id = resolveOfficeId(u.country);
 
     if (email) {
       rowsWithEmail.push({ slack_id: slackId, full_name, company_id, active: true, email, country, office_id });
     } else {
       rowsWithoutEmail.push({ slack_id: slackId, full_name, company_id, active: true, country, office_id });
+    }
+  }
+
+  // El upsert con service role puede actualizar una fila existente aunque
+  // sea de otra oficina. Cerramos esa vía para admins normales si un
+  // slack_id cambió de país en el directorio.
+  if (callerOfficeId) {
+    const slackIds = scopedUsers.map((u) => u.slack_id as string);
+    for (let offset = 0; offset < slackIds.length; offset += 100) {
+      const { data: existing, error } = await adminClient
+        .from("employees")
+        .select("slack_id, office_id")
+        .in("slack_id", slackIds.slice(offset, offset + 100));
+      if (error) {
+        return jsonResponse({ error: "No se pudo comprobar la oficina de los colaboradores." }, 500);
+      }
+      if (existing?.some((employee) => employee.office_id && employee.office_id !== callerOfficeId)) {
+        return jsonResponse({ error: "Hay colaboradores ya asignados a otra oficina. Contacta a un superadmin." }, 403);
+      }
     }
   }
 
