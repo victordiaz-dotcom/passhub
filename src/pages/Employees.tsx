@@ -9,7 +9,7 @@ import type { Tables } from "@/integrations/supabase/types";
 type Employee = Tables<"employees"> & { companies: Pick<Tables<"companies">, "name"> | null };
 type SyncCountry = "MX" | "ES";
 const SYNC_COUNTRIES: SyncCountry[] = ["MX", "ES"];
-const FILTER_COUNTRIES = ["MX", "ES", "FR", "IT", "CO"];
+const FILTER_COUNTRIES: SyncCountry[] = ["MX", "ES"];
 
 export default function Employees() {
   const { profile, isSuperadmin } = useAuth();
@@ -40,8 +40,15 @@ export default function Employees() {
       .select("*, companies(name)")
       .eq("active", true)
       .order("full_name");
-    // RLS limita a cada admin a su oficina. Solo superadmin puede pedir otro país.
-    if (isSuperadmin && countryFilter) query = query.eq("country", countryFilter);
+    // La operación tiene dos grupos: México y España. Francia e Italia se
+    // atienden desde España y aparecen al elegir ese país.
+    if (isSuperadmin && countryFilter === "MX") {
+      query = query.eq("country", "MX");
+    } else if (isSuperadmin && countryFilter === "ES") {
+      query = query.in("country", ["ES", "FR", "IT"]);
+    } else {
+      query = query.in("country", ["MX", "ES", "FR", "IT"]);
+    }
     query.then(({ data, error }) => {
       if (cancelled) return;
       setEmployees((data as Employee[] | null) ?? []);

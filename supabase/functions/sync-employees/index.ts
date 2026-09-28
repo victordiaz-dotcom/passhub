@@ -76,8 +76,8 @@ Deno.serve(async (req) => {
   }
 
   const body = await req.json().catch(() => null);
-  const requestedCountry = body?.country;
-  if (requestedCountry !== "MX" && requestedCountry !== "ES") {
+  const countryChoice = body?.country;
+  if (countryChoice !== undefined && countryChoice !== "MX" && countryChoice !== "ES") {
     return jsonResponse({ error: "Selecciona México o España para sincronizar." }, 400);
   }
 
@@ -169,6 +169,15 @@ Deno.serve(async (req) => {
   }
 
   const { data: offices } = await adminClient.from("offices").select("id, name, country");
+
+  // La interfaz v2.0.0 todavía llama sin body mientras se reemplaza el
+  // contenedor. Conservamos esa llamada: un admin usa su país y un
+  // superadmin sincroniza México. v2.0.1 siempre manda el país explícito.
+  const callerOfficeCountry = offices?.find((office) => office.id === callerOfficeId)?.country;
+  const requestedCountry = countryChoice ?? (callerIsSuperadmin ? "MX" : callerOfficeCountry);
+  if (requestedCountry !== "MX" && requestedCountry !== "ES") {
+    return jsonResponse({ error: "Tu cuenta no tiene un país habilitado para sincronizar." }, 403);
+  }
 
   const targetOffice = offices?.find((office) => office.country === requestedCountry);
   if (!targetOffice) {
