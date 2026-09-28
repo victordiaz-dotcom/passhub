@@ -10,6 +10,7 @@ import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions"
 import { checkoutVisit } from "@/lib/checkout";
 import { TableSkeletonRows } from "@/components/Skeleton";
 import { copyToClipboard } from "@/lib/clipboard";
+import { preregistrationLink } from "@/lib/preregistrationLink";
 import { findFlaggedVisitor, flagVisitor, type FlaggedVisitorMatch } from "@/lib/flaggedVisitors";
 import { isValidName, NAME_INVALID_MESSAGE } from "@/lib/nameValidation";
 import { filterNameInput, filterPhoneInput, filterEmailInput, isValidEmailFormat, EMAIL_INVALID_MESSAGE } from "@/lib/inputFilters";
@@ -140,6 +141,7 @@ export default function CheckIn() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState<boolean | null>(null);
+  const canCopyPreregLink = !!profile && (isSuperadmin || !!profile.office_id);
   const [slackWarning, setSlackWarning] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -806,10 +808,12 @@ export default function CheckIn() {
             <button
               type="button"
               onClick={async () => {
-                const ok = await copyToClipboard(`${window.location.origin}/pre-register`);
+                if (!canCopyPreregLink || !profile) return;
+                const ok = await copyToClipboard(preregistrationLink(window.location.origin, profile.office_id));
                 setLinkCopied(ok);
               }}
-              className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint"
+              disabled={!canCopyPreregLink}
+              className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint disabled:opacity-50"
             >
               {linkCopied === true
                 ? "¡Copiada!"
