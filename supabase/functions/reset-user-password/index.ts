@@ -244,7 +244,10 @@ Deno.serve(async (req) => {
   // restringe por empresa -- varias empresas comparten una misma oficina
   // física, y quien administra esa oficina debe poder restablecer
   // contraseñas de cualquiera de ellas.
-  if (!callerIsSuperadmin && callerProfile?.office_id) {
+  if (!callerIsSuperadmin) {
+    if (!callerProfile.office_id) {
+      return jsonResponse({ error: "Tu cuenta necesita una oficina asignada." }, 403);
+    }
     const { data: targetProfile } = await adminClient
       .from("profiles")
       .select("office_id")

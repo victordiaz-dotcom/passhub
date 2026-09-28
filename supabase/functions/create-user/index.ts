@@ -215,10 +215,8 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Solo un administrador puede crear cuentas." }, 403);
   }
 
-  // company_id/office_id del propio caller: null en cualquiera de los dos
-  // significa "sin restricción" (mismo criterio que las políticas RLS de
-  // employees, ver migración 0069) — un admin sin oficina/empresa asignada
-  // puede crear cuentas en cualquiera. superadmin nunca se restringe.
+  // La service role ignora RLS: una cuenta admin sin oficina no puede crear
+  // cuentas hasta que superadmin le asigne una oficina.
   const { data: callerProfile } = await adminClient
     .from("profiles")
     .select("active, company_id, office_id")
@@ -298,7 +296,7 @@ Deno.serve(async (req) => {
   // -- varias empresas comparten una misma oficina física, y quien
   // administra esa oficina debe poder crear/gestionar cuentas de cualquiera
   // de ellas. No se restringe por empresa.
-  if (!callerIsSuperadmin && callerProfile?.office_id && officeId !== callerProfile.office_id) {
+  if (!callerIsSuperadmin && (!callerProfile.office_id || officeId !== callerProfile.office_id)) {
     return jsonResponse({ error: "Solo puedes crear cuentas dentro de tu propia oficina." }, 403);
   }
 

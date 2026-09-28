@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
   // Mismo criterio que create-user: un admin normal solo puede actuar sobre
   // cuentas de su propia oficina. Faltaba aquí -- un admin de una oficina
   // podía editar el correo de cualquier cuenta de OTRA oficina.
-  if (!callerIsSuperadmin && callerProfile?.office_id && target.office_id !== callerProfile.office_id) {
+  if (!callerIsSuperadmin && (!callerProfile.office_id || target.office_id !== callerProfile.office_id)) {
     return jsonResponse({ error: "Solo puedes actuar sobre cuentas de tu propia oficina." }, 403);
   }
 
