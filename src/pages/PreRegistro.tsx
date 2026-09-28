@@ -180,15 +180,8 @@ export default function PreRegistro() {
       setVisitorCompanySuggestions(mergeVisitorCompanySuggestions([]));
       setFields(fieldsRes.data.fields ?? []);
 
-      // Un solo link para todas las oficinas: aquí se resuelve cuál toca.
-      // Prioridad: lo que venga en la URL (?oficina=madrid) para cuando se
-      // quiera compartir un link ya dirigido, luego el país de la IP real
-      // (lo resuelve el servidor, ver getClientCountry() en la función de
-      // borde) -- NO la zona horaria del dispositivo: esa es ambigua (el
-      // reloj del sistema no cambia con una VPN, así que alguien
-      // conectándose desde otro país seguía viendo el país equivocado). Si
-      // con eso no alcanza (o el país tiene más de una oficina) se le
-      // pregunta al visitante.
+      // Un link dirigido a una oficina manda sobre la IP del visitante.
+      // La geolocalización solo se usa para el link genérico, sin oficina.
       const activeOffices: Office[] = officesRes.data?.offices ?? [];
       setOffices(activeOffices);
 
@@ -199,8 +192,8 @@ export default function PreRegistro() {
       // por IP, que queda solo como respaldo del link genérico /pre-register.
       const pathHint = window.location.pathname.split("/").filter(Boolean).pop()?.toLowerCase();
       const requested =
-        new URLSearchParams(window.location.search).get("oficina")?.toLowerCase() ??
-        (pathHint === "mx" || pathHint === "es" ? pathHint : undefined);
+        (pathHint === "mx" || pathHint === "es" ? pathHint : undefined) ??
+        new URLSearchParams(window.location.search).get("oficina")?.toLowerCase();
       const fromUrl = requested
         ? activeOffices.find(
             (office) =>
@@ -215,10 +208,18 @@ export default function PreRegistro() {
         ? activeOffices.filter((office) => office.country === detectedCountry)
         : [];
 
-      const resolved = fromUrl ?? (matchesDetected.length === 1 ? matchesDetected[0] : undefined);
+      // Si la oficina explícita ya no existe o está inactiva, nunca cambiar
+      // silenciosamente a la oficina detectada por IP: eso generaría un QR
+      // con dirección de otro país.
+      const resolved = requested
+        ? fromUrl
+        : matchesDetected.length === 1 ? matchesDetected[0] : undefined;
 
       if (resolved) {
         setOfficeId(resolved.id);
+      } else if (requested) {
+        setOfficeId("");
+        setOfficePickerOpen(true);
       } else if (activeOffices.length === 1) {
         setOfficeId(activeOffices[0].id);
       } else {

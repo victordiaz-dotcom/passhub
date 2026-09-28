@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { copyToClipboard } from "@/lib/clipboard";
+import { preregistrationLink } from "@/lib/preregistrationLink";
+import { useAuth } from "@/hooks/useAuth";
 import { TableSkeletonRows } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -12,6 +14,7 @@ type PreregField = Tables<"preregistro_fields">;
 type Tab = "empresas" | "divisiones" | "tipos" | "campos";
 
 export default function Catalogs() {
+  const { profile, isSuperadmin } = useAuth();
   const [tab, setTab] = useState<Tab>("empresas");
   const [linkCopied, setLinkCopied] = useState<boolean | null>(null);
 
@@ -19,7 +22,8 @@ export default function Catalogs() {
   // siempre apunta a donde realmente se está corriendo la app (producción,
   // o localhost/otro host mientras se prueba), sin quedar mal si el
   // dominio de producción cambia algún día.
-  const preregistroUrl = `${window.location.origin}/pre-register`;
+  const preregistroUrl = preregistrationLink(window.location.origin, profile?.office_id);
+  const canCopyPreregLink = !!profile && (isSuperadmin || !!profile.office_id);
 
   return (
     <div className="mx-auto max-w-4xl p-6">
@@ -28,9 +32,11 @@ export default function Catalogs() {
         <button
           type="button"
           onClick={async () => {
+            if (!canCopyPreregLink) return;
             const ok = await copyToClipboard(preregistroUrl);
             setLinkCopied(ok);
           }}
+          disabled={!canCopyPreregLink}
           className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint"
         >
           {linkCopied === true
