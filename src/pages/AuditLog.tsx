@@ -2,21 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ROLE_LABELS } from "@/lib/roles";
 import { TableSkeletonRows } from "@/components/Skeleton";
+import { PageHeader, PageShell } from "@/components/layout/PageShell";
+import { DatePresetSelect } from "@/components/DatePresetSelect";
+import { datePresetRange, type DatePreset } from "@/lib/datePresets";
 import type { Tables } from "@/integrations/supabase/types";
 
 type AuditRow = Tables<"audit_logs">;
 type ProfileLite = { id: string; full_name: string; email: string };
 
-const filterInputClass = "input-field h-auto py-2 disabled:opacity-50";
-
-// Mismo criterio que Historial.tsx: fecha local, no UTC (evita que
-// "hoy" salte al día siguiente/anterior cerca de medianoche según el
-// huso horario de quien lo usa).
-function todayLocal() {
-  const now = new Date();
-  const offset = now.getTimezoneOffset();
-  return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
-}
+const filterInputClass = "input-field h-auto w-full py-2 font-sans text-sm disabled:opacity-50";
 
 const ACTION_LABELS: Record<string, string> = {
   create_user: "Cuenta creada",
@@ -158,11 +152,14 @@ function summarizeDetail(row: AuditRow): string {
 export default function AuditLog() {
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedQueryKey, setLoadedQueryKey] = useState<string | null>(null);
   const [profilesById, setProfilesById] = useState<Record<string, ProfileLite>>({});
   const [admins, setAdmins] = useState<ProfileLite[]>([]);
 
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [period, setPeriod] = useState<DatePreset>("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const { from: dateFrom, to: dateTo } = datePresetRange(period, customFrom, customTo);
   const [category, setCategory] = useState<"cuentas" | "visitas" | "catalogos" | "todas">("cuentas");
   const [actorId, setActorId] = useState("");
   // Mismo filtro que Historial ("Nombre del visitante"), pero acá el nombre
@@ -173,6 +170,8 @@ export default function AuditLog() {
   // solo 200 filas cargadas a la vez, se filtra en el cliente en vez de
   // armar un .or() de PostgREST sobre dos rutas jsonb distintas.
   const [visitorNameQuery, setVisitorNameQuery] = useState("");
+  const queryKey = `${dateFrom}:${dateTo}:${category}:${actorId}`;
+  const showingSkeleton = loading || loadedQueryKey !== queryKey;
 
   useEffect(() => {
     supabase
@@ -197,6 +196,7 @@ export default function AuditLog() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
 
@@ -215,10 +215,13 @@ export default function AuditLog() {
       if (actorId) query = query.eq("actor_id", actorId);
 
       const { data } = await query;
+      if (cancelled) return;
       setRows(data ?? []);
+      setLoadedQueryKey(queryKey);
       setLoading(false);
     }
     load();
+    return () => { cancelled = true; };
   }, [dateFrom, dateTo, category, actorId]);
 
   const visibleRows = useMemo(() => {
@@ -276,40 +279,25 @@ export default function AuditLog() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <h1 className="mb-6 font-display text-xl font-bold text-ink">Auditoría</h1>
+    <PageShell width="medium">
+      <PageHeader title="Auditoría" description="Consulta los movimientos y cambios registrados en PassHub." />
 
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-soft">Desde</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className={filterInputClass}
-          />
+      <section className="card mb-5 grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3" aria-label="Filtros de auditoría">
+        <div className="min-w-0">
+          <label htmlFor="auditPeriod" className="mb-1 block text-xs font-medium text-ink-soft">Periodo</label>
+          <DatePresetSelect id="auditPeriod" value={period} onChange={setPeriod} className={filterInputClass} />
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-ink-soft">Hasta</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className={filterInputClass}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            const today = todayLocal();
-            setDateFrom(today);
-            setDateTo(today);
-          }}
-          className="btn-secondary h-auto px-3 py-2 text-sm"
-        >
-          Hoy
-        </button>
-        <div>
+        {period === "custom" && <>
+          <div className="min-w-0">
+            <label htmlFor="auditFrom" className="mb-1 block text-xs font-medium text-ink-soft">Desde</label>
+            <input id="auditFrom" type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} className={filterInputClass} />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="auditTo" className="mb-1 block text-xs font-medium text-ink-soft">Hasta</label>
+            <input id="auditTo" type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} className={filterInputClass} />
+          </div>
+        </>}
+        <div className="min-w-0">
           <label className="mb-1 block text-xs font-medium text-ink-soft">Categoría</label>
           <select
             value={category}
@@ -322,7 +310,7 @@ export default function AuditLog() {
             <option value="todas">Todas</option>
           </select>
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="mb-1 block text-xs font-medium text-ink-soft">Actor</label>
           <select value={actorId} onChange={(e) => setActorId(e.target.value)} className={filterInputClass}>
             <option value="">Todos</option>
@@ -333,7 +321,7 @@ export default function AuditLog() {
             ))}
           </select>
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="mb-1 block text-xs font-medium text-ink-soft">Nombre del visitante</label>
           <input
             type="text"
@@ -343,12 +331,13 @@ export default function AuditLog() {
             className={filterInputClass}
           />
         </div>
-        {(dateFrom || dateTo || actorId || visitorNameQuery || category !== "cuentas") && (
+        {(period !== "today" || actorId || visitorNameQuery || category !== "cuentas") && (
           <button
             type="button"
             onClick={() => {
-              setDateFrom("");
-              setDateTo("");
+              setPeriod("today");
+              setCustomFrom("");
+              setCustomTo("");
               setActorId("");
               setVisitorNameQuery("");
               setCategory("cuentas");
@@ -358,9 +347,9 @@ export default function AuditLog() {
             Limpiar filtros
           </button>
         )}
-      </div>
+      </section>
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card min-h-80 overflow-x-auto p-0">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
             <tr className="tbl-head border-b border-line text-ink-soft">
@@ -372,15 +361,15 @@ export default function AuditLog() {
             </tr>
           </thead>
           <tbody>
-            {loading && <TableSkeletonRows rows={5} columns={5} />}
-            {!loading && visibleRows.length === 0 && (
+            {showingSkeleton && <TableSkeletonRows rows={Math.max(5, Math.min(visibleRows.length, 10))} columns={5} />}
+            {!showingSkeleton && visibleRows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-ink-soft">
+                <td colSpan={5} className="h-64 px-4 py-6 text-center align-middle text-ink-soft">
                   No hay registros para este filtro.
                 </td>
               </tr>
             )}
-            {visibleRows.map((row) => {
+            {!showingSkeleton && visibleRows.map((row) => {
               const actor = row.actor_id ? profilesById[row.actor_id] : null;
               return (
                 <tr key={row.id} className="border-b border-line last:border-0">
@@ -399,6 +388,6 @@ export default function AuditLog() {
       </div>
 
       <p className="mt-3 text-xs text-ink-soft">Se muestran los últimos 200 registros que coinciden con el filtro.</p>
-    </div>
+    </PageShell>
   );
 }

@@ -1,8 +1,9 @@
-import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet, useParams, useLocation } from "react-router-dom";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import { IdleLogout } from "@/components/IdleLogout";
 import { ThemeInitializer } from "@/components/ThemeInitializer";
+import { ErrorScreen } from "@/components/ErrorScreen";
 import { useAuth } from "@/hooks/useAuth";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
@@ -29,16 +30,18 @@ function RedirectOldPreregConfirmacion() {
   return <Navigate to={`/pre-register/confirmation${location.search}#${token}`} replace />;
 }
 
-// ProtectedRoute ya espera sesión y roles antes de montar HomeRoute. Guardia
-// ve su panel de solo lectura; los demás roles ven el registro de visitas.
+// Mantener Layout montado entre rutas evita reconstruir la cabecera al
+// cambiar de sección. Guardia conserva su pantalla independiente.
+function AuthenticatedLayout() {
+  const { isGuardia, isAdmin, isRecepcion } = useAuth();
+  if (isGuardia && !isAdmin && !isRecepcion) return <Outlet />;
+  return <Layout><Outlet /></Layout>;
+}
+
 function HomeRoute() {
   const { isGuardia, isAdmin, isRecepcion } = useAuth();
   if (isGuardia && !isAdmin && !isRecepcion) return <Guardia />;
-  return (
-    <Layout>
-      <CheckIn />
-    </Layout>
-  );
+  return <CheckIn />;
 }
 
 export default function App() {
@@ -64,74 +67,16 @@ export default function App() {
         <Route path="/pre-register/confirmation/:token" element={<RedirectOldPreregConfirmacion />} />
         <Route path="/pre-registro" element={<Navigate to="/pre-register" replace />} />
         <Route path="/pre-registro/confirmacion/:token" element={<RedirectOldPreregConfirmacion />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute allowedRoles={["recepcion", "admin", "superadmin", "guardia"]}>
-              <HomeRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
-              <Layout>
-                <Dashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/history"
-          element={
-            <ProtectedRoute allowedRoles={["admin", "recepcion", "superadmin"]}>
-              <Layout>
-                <Historial />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/employees"
-          element={
-            <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
-              <Layout>
-                <Employees />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/users"
-          element={
-            <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
-              <Layout>
-                <Users />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/catalogs"
-          element={
-            <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
-              <Layout>
-                <Catalogs />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/audit-log"
-          element={
-            <ProtectedRoute allowedRoles={["superadmin"]}>
-              <Layout>
-                <AuditLog />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route element={<ProtectedRoute allowedRoles={["recepcion", "admin", "superadmin", "guardia"]}><AuthenticatedLayout /></ProtectedRoute>}>
+          <Route path="/" element={<HomeRoute />} />
+          <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin", "superadmin"]}><Dashboard /></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute allowedRoles={["admin", "recepcion", "superadmin"]}><Historial /></ProtectedRoute>} />
+          <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin", "superadmin"]}><Employees /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute allowedRoles={["admin", "superadmin"]}><Users /></ProtectedRoute>} />
+          <Route path="/catalogs" element={<ProtectedRoute allowedRoles={["admin", "superadmin"]}><Catalogs /></ProtectedRoute>} />
+          <Route path="/audit-log" element={<ProtectedRoute allowedRoles={["superadmin"]}><AuditLog /></ProtectedRoute>} />
+        </Route>
+        <Route path="*" element={<ErrorScreen status={404} title="No encontramos esta página" description="La dirección puede estar incompleta o la página ya no existe. Revisa el enlace o vuelve al inicio de PassHub." />} />
       </Routes>
     </>
   );

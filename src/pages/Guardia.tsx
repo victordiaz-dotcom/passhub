@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { APP_VERSION } from "@/lib/version";
 import { normalizeVisitorName } from "@/lib/flaggedVisitors";
-import { COUNTRY_FLAGS } from "@/lib/countryFlags";
+import { CountryFlag } from "@/components/CountryFlag";
 import { Skeleton } from "@/components/Skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -176,7 +176,7 @@ export default function Guardia() {
           <div className="flex items-center gap-2">
             {office && (
               <span className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-white">
-                <span className="text-lg leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
+                <CountryFlag code={office.country} />
                 {office.name}
               </span>
             )}

@@ -4,6 +4,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { preregistrationLink } from "@/lib/preregistrationLink";
 import { useAuth } from "@/hooks/useAuth";
 import { TableSkeletonRows } from "@/components/Skeleton";
+import { PageHeader, PageShell } from "@/components/layout/PageShell";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Company = Tables<"companies">;
@@ -16,7 +17,13 @@ type Tab = "empresas" | "divisiones" | "tipos" | "campos";
 export default function Catalogs() {
   const { profile, isSuperadmin } = useAuth();
   const [tab, setTab] = useState<Tab>("empresas");
+  const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => new Set(["empresas"]));
   const [linkCopied, setLinkCopied] = useState<boolean | null>(null);
+
+  function selectTab(next: Tab) {
+    setVisitedTabs((current) => new Set([...current, next]));
+    setTab(next);
+  }
 
   // window.location.origin en vez de un dominio fijo: así la liga copiada
   // siempre apunta a donde realmente se está corriendo la app (producción,
@@ -26,76 +33,74 @@ export default function Catalogs() {
   const canCopyPreregLink = !!profile && (isSuperadmin || !!profile.office_id);
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-1 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-xl font-bold text-ink">Catálogos</h1>
-        <button
-          type="button"
-          onClick={async () => {
-            if (!canCopyPreregLink) return;
-            const ok = await copyToClipboard(preregistroUrl);
-            setLinkCopied(ok);
-          }}
-          disabled={!canCopyPreregLink}
-          className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint"
-        >
-          {linkCopied === true
-            ? "¡Copiada!"
-            : linkCopied === false
-              ? "No se pudo, cópiala tú"
-              : "Copiar liga de pre-registro"}
-        </button>
-      </div>
-      <p className="mb-6 text-sm text-ink-soft">
-        Empresas anfitrionas, divisiones y tipos de visita que alimentan los desplegables de
-        Registrar visita y el pre-registro público. Desactivar una fila no la borra ni afecta el
-        historial — solo deja de aparecer como opción nueva.
-      </p>
+    <PageShell width="narrow">
+      <PageHeader
+        title="Catálogos"
+        description="Configura las opciones de registro. Desactivar una fila no borra su historial."
+        actions={
+          <button
+            type="button"
+            onClick={async () => {
+              if (!canCopyPreregLink) return;
+              const ok = await copyToClipboard(preregistroUrl);
+              setLinkCopied(ok);
+            }}
+            disabled={!canCopyPreregLink}
+            className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint"
+          >
+            {linkCopied === true
+              ? "¡Copiada!"
+              : linkCopied === false
+                ? "No se pudo, cópiala tú"
+                : "Copiar liga de pre-registro"}
+          </button>
+        }
+      />
 
       <div className="mb-6 flex w-fit rounded-md border border-line bg-card p-1">
         <button
           type="button"
-          onClick={() => setTab("empresas")}
+          onClick={() => selectTab("empresas")}
           className={`rounded px-3 py-1.5 text-sm font-medium ${
-            tab === "empresas" ? "bg-accent text-white" : "text-ink-soft hover:text-ink"
+            tab === "empresas" ? "bg-accent-tint text-accent-dark" : "text-ink-soft hover:text-ink"
           }`}
         >
           Empresas anfitrionas
         </button>
         <button
           type="button"
-          onClick={() => setTab("divisiones")}
+          onClick={() => selectTab("divisiones")}
           className={`rounded px-3 py-1.5 text-sm font-medium ${
-            tab === "divisiones" ? "bg-accent text-white" : "text-ink-soft hover:text-ink"
+            tab === "divisiones" ? "bg-accent-tint text-accent-dark" : "text-ink-soft hover:text-ink"
           }`}
         >
           Divisiones
         </button>
         <button
           type="button"
-          onClick={() => setTab("tipos")}
+          onClick={() => selectTab("tipos")}
           className={`rounded px-3 py-1.5 text-sm font-medium ${
-            tab === "tipos" ? "bg-accent text-white" : "text-ink-soft hover:text-ink"
+            tab === "tipos" ? "bg-accent-tint text-accent-dark" : "text-ink-soft hover:text-ink"
           }`}
         >
           Tipos de visita
         </button>
         <button
           type="button"
-          onClick={() => setTab("campos")}
+          onClick={() => selectTab("campos")}
           className={`rounded px-3 py-1.5 text-sm font-medium ${
-            tab === "campos" ? "bg-accent text-white" : "text-ink-soft hover:text-ink"
+            tab === "campos" ? "bg-accent-tint text-accent-dark" : "text-ink-soft hover:text-ink"
           }`}
         >
           Campos de pre-registro
         </button>
       </div>
 
-      {tab === "empresas" && <CompaniesTab />}
-      {tab === "divisiones" && <DivisionsTab />}
-      {tab === "tipos" && <VisitTypesTab />}
-      {tab === "campos" && <PreregFieldsTab />}
-    </div>
+      <div hidden={tab !== "empresas"}>{visitedTabs.has("empresas") && <CompaniesTab />}</div>
+      <div hidden={tab !== "divisiones"}>{visitedTabs.has("divisiones") && <DivisionsTab />}</div>
+      <div hidden={tab !== "tipos"}>{visitedTabs.has("tipos") && <VisitTypesTab />}</div>
+      <div hidden={tab !== "campos"}>{visitedTabs.has("campos") && <PreregFieldsTab />}</div>
+    </PageShell>
   );
 }
 
@@ -169,7 +174,7 @@ function CompaniesTab() {
       </form>
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card min-h-80 overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="tbl-head border-b border-line text-ink-soft">
@@ -179,15 +184,15 @@ function CompaniesTab() {
             </tr>
           </thead>
           <tbody>
-            {loading && <TableSkeletonRows rows={5} columns={3} />}
+            {loading && <TableSkeletonRows rows={4} columns={3} variant="catalog" />}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-ink-soft">
+                <td colSpan={3} className="h-64 px-4 py-6 text-center align-middle text-ink-soft">
                   No hay empresas registradas.
                 </td>
               </tr>
             )}
-            {rows.map((row) => (
+            {!loading && rows.map((row) => (
               <tr key={row.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 text-ink">{row.name}</td>
                 <td className="px-4 py-3">
@@ -298,7 +303,7 @@ function DivisionsTab() {
       </form>
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card min-h-80 overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="tbl-head border-b border-line text-ink-soft">
@@ -309,15 +314,15 @@ function DivisionsTab() {
             </tr>
           </thead>
           <tbody>
-            {loading && <TableSkeletonRows rows={5} columns={4} />}
+            {loading && <TableSkeletonRows rows={4} columns={4} variant="catalog" />}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-ink-soft">
+                <td colSpan={4} className="h-64 px-4 py-6 text-center align-middle text-ink-soft">
                   No hay divisiones registradas.
                 </td>
               </tr>
             )}
-            {rows.map((row) => (
+            {!loading && rows.map((row) => (
               <tr key={row.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 text-ink">{row.name}</td>
                 <td className="px-4 py-3 text-ink-soft">{row.companies?.name ?? "—"}</td>
@@ -400,7 +405,7 @@ function VisitTypesTab() {
       </form>
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card min-h-80 overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="tbl-head border-b border-line text-ink-soft">
@@ -410,15 +415,15 @@ function VisitTypesTab() {
             </tr>
           </thead>
           <tbody>
-            {loading && <TableSkeletonRows rows={5} columns={3} />}
+            {loading && <TableSkeletonRows rows={4} columns={3} variant="catalog" />}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-ink-soft">
+                <td colSpan={3} className="h-64 px-4 py-6 text-center align-middle text-ink-soft">
                   No hay tipos de visita registrados.
                 </td>
               </tr>
             )}
-            {rows.map((row) => (
+            {!loading && rows.map((row) => (
               <tr key={row.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 text-ink">{row.name}</td>
                 <td className="px-4 py-3">
@@ -583,7 +588,7 @@ function PreregFieldsTab() {
       </form>
       {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card min-h-80 overflow-x-auto p-0">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="tbl-head border-b border-line text-ink-soft">
@@ -596,15 +601,15 @@ function PreregFieldsTab() {
             </tr>
           </thead>
           <tbody>
-            {loading && <TableSkeletonRows rows={5} columns={6} />}
+            {loading && <TableSkeletonRows rows={4} columns={6} variant="catalog" />}
             {!loading && sortedRows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-ink-soft">
+                <td colSpan={6} className="h-64 px-4 py-6 text-center align-middle text-ink-soft">
                   No hay campos configurados.
                 </td>
               </tr>
             )}
-            {sortedRows.map((row, idx) => (
+            {!loading && sortedRows.map((row, idx) => (
               <tr key={row.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 text-ink">
                   {row.label_es || (row.kind === "builtin" ? BUILTIN_LABELS[row.field_key] : row.field_key)}

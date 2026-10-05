@@ -5,4 +5,4 @@
 // está corriendo cuando se suba un fix -- el patch (el último número) sube
 // en cada fix; el minor cuando se agrega una función; el major solo si se
 // vuelve a rehacer la app entera como con v1 -> v2.
-export const APP_VERSION = "v2.0.1";
+export const APP_VERSION = "v2.0.4";

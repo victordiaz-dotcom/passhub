@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { clearViewCache } from "@/lib/viewCache";
 
 type Profile = Tables<"profiles">;
 type Role = Tables<"user_roles">["role"];
@@ -31,8 +32,9 @@ function useAuthState() {
       setSessionLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (cancelled) return;
+      if (event === "SIGNED_OUT") clearViewCache();
       setSession(newSession);
     });
 

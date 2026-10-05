@@ -9,6 +9,128 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Reserva el ancho del scroll al pasar de una tabla larga a un estado corto. */
+html { scrollbar-gutter: stable; }
+
+.app-nav { scrollbar-width: none; }
+.app-nav::-webkit-scrollbar { display: none; }
+
+/* Menús propios con la misma superficie, tipografía y borde del sistema. */
+.dropdown-popover {
+  border: 1px solid rgb(var(--line));
+  border-radius: var(--radius-lg);
+  background: rgb(var(--card));
+  box-shadow: var(--shadow-lg);
+  color: rgb(var(--ink));
+  font-family: var(--font-body), sans-serif;
+}
+
+/* Lista buscable de colaboradores: aspecto del menú nativo de macOS. */
+.mac-select-menu {
+  border: 1px solid rgb(105 105 107);
+  border-radius: var(--radius-lg);
+  background: rgb(84 84 86);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 24%);
+  color: white;
+  font-family: var(--font-body), sans-serif;
+  overscroll-behavior: contain;
+}
+
+.mac-select-menu__option {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  color: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.mac-select-menu__option:hover,
+.mac-select-menu__option--active {
+  background: rgb(var(--accent));
+  color: white;
+}
+
+.mac-select-menu__hint { color: rgb(230 230 232); }
+
+@media (max-width: 1023px) {
+  .mac-select-menu__option { min-height: 44px; padding-block: 11px; }
+  .mac-select-menu { max-width: 100%; }
+}
+
+.panel-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start;
+  row-gap: 1.25rem;
+  transition: grid-template-columns 240ms ease;
+}
+
+.panel-layout__aside {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-layout__aside-inner { width: 100%; }
+.panel-layout__content { min-width: 0; }
+.panel-layout__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border-radius: .375rem;
+  color: rgb(var(--ink-soft));
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.panel-layout__toggle:hover { background: rgb(var(--accent-tint)); color: rgb(var(--accent-dark)); }
+.panel-layout__toggle:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+
+@media (max-width: 1279px) {
+  .panel-layout__aside-inner > div {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+  .panel-layout__aside-inner > div > * { margin-top: 0; }
+}
+
+.panel-layout--closed .panel-layout__aside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgb(var(--line));
+  border-radius: .75rem;
+  background: rgb(var(--card));
+}
+.panel-layout--closed .panel-layout__aside-inner { display: none; }
+
+@media (min-width: 1280px) {
+  .panel-layout__aside-inner { width: 16rem; }
+  .panel-layout--xl { grid-template-columns: 16rem minmax(0, 1fr); grid-template-rows: auto; column-gap: 1.5rem; }
+  .panel-layout--xl.panel-layout--closed { grid-template-columns: 2.5rem minmax(0, 1fr); }
+}
+
+@media (min-width: 1536px) {
+  .panel-layout--2xl { grid-template-columns: 16rem minmax(0, 1fr); grid-template-rows: auto; column-gap: 1.5rem; }
+  .panel-layout--2xl.panel-layout--closed { grid-template-columns: 2.5rem minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-layout, .panel-layout__toggle { transition: none; }
+}
+
 /* Canales RGB (sin "rgb()", separados por espacio) en vez de hex: así
    tailwind.config.ts puede armar rgb(var(--x) / <alpha-value>) y seguir
    soportando modificadores de opacidad (bg-danger/10, hover:bg-ink/90,
@@ -16,6 +138,8 @@
    Tailwind no puede calcular esa mezcla en build time y esas clases
    simplemente no se generan. */
 :root {
+  --font-display: "Montserrat";
+  --font-body: "Inter";
   --ink: 29 29 31; /* #1d1d1f — gray-12 en tendencys-design-system.css */
   --ink-soft: 108 117 125; /* #6c757d — gray-9 (texto muted) */
   --paper: 244 246 249; /* #f4f6f9 — fondo html/body */

@@ -13,3 +13,5 @@ backups/
 *.tar.gz
 *.tar.gz.sha256
 supabase/.temp/
+playwright-report/
+test-results/

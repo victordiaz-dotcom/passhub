@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { Globe2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
-import { COUNTRY_FLAGS } from "@/lib/countryFlags";
+import { CountryFlag } from "@/components/CountryFlag";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { copyToClipboard } from "@/lib/clipboard";
 import { preregistrationLink } from "@/lib/preregistrationLink";
@@ -77,22 +78,30 @@ export function AppHeader() {
     // línea, esa altura ya no coincidía y el contenido quedaba tapado o
     // separado de más. Mismo patrón que ya usa Guardia.tsx.
     <div className="sticky top-0 z-50 bg-ink text-white">
-      <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+      <header className="relative flex flex-wrap items-center justify-between gap-2 px-4 py-2">
         <span className="flex items-center gap-2 font-display text-lg font-bold">
           <img src="/logo.png" alt="PassHub" className="h-7 w-auto" />
           PassHub
         </span>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto lg:gap-3">
           <ThemeToggle />
-          {office && (
+          {isSuperadmin ? (
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white"
+              title="Acceso global"
+              aria-label="Acceso global"
+            >
+              <Globe2 size={23} strokeWidth={2.25} aria-hidden="true" />
+            </span>
+          ) : office && (
             <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
-              <span className="text-xl leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
+              <CountryFlag code={office.country} />
               {office.name}
             </span>
           )}
-          <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white">
             {firstName}
-            {roleLabel && <span className="text-white/50"> · {roleLabel}</span>}
+            {roleLabel && <span className="hidden text-white/50 sm:inline"> · {roleLabel}</span>}
           </span>
           <button
             type="button"
@@ -100,19 +109,19 @@ export function AppHeader() {
             disabled={!canCopyPreregLink}
             className="rounded-full bg-white/10 px-3 py-1 text-sm font-medium text-white hover:bg-white/20 disabled:opacity-50"
           >
-            {linkCopied ? "¡Copiado!" : "Copiar liga de pre-registro"}
+            {linkCopied ? "¡Copiado!" : <><span className="lg:hidden">Copiar liga</span><span className="hidden lg:inline">Copiar liga de pre-registro</span></>}
           </button>
           <button
             type="button"
             onClick={() => signOut()}
-            className="text-sm text-white/70 hover:text-white"
+            className="absolute right-4 top-3 text-sm text-white/70 hover:text-white sm:static"
           >
             Cerrar sesión
           </button>
         </div>
       </header>
 
-      <nav className="flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-white/10 px-3 py-2">
+      <nav aria-label="Navegación principal" className="app-nav flex flex-nowrap items-center gap-1 overflow-x-auto whitespace-nowrap border-t border-white/10 px-3 py-2">
         <NavLink to="/" end className={navLinkClass}>
           Registrar visita
         </NavLink>

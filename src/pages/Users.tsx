@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
-import { MoreVertical } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { MoreVertical, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { TableSkeletonRows } from "@/components/Skeleton";
+import { PageHeader, PageShell } from "@/components/layout/PageShell";
+import { CountryFlag } from "@/components/CountryFlag";
 import { copyToClipboard } from "@/lib/clipboard";
-import { COUNTRY_FLAGS, COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
+import { COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
+import { clearViewCache, coalesceViewRequest, readViewCache, writeViewCache } from "@/lib/viewCache";
 import { isValidName, NAME_INVALID_MESSAGE } from "@/lib/nameValidation";
 import {
   filterNameInput,
@@ -72,6 +75,8 @@ export default function Users() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedFilterKey, setLoadedFilterKey] = useState<string | null>(null);
+  const loadRequestId = useRef(0);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -94,10 +99,7 @@ export default function Users() {
   const [editingOriginalRoles, setEditingOriginalRoles] = useState<string[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Account | null>(null);
-  // Colapsado por defecto: "Nueva cuenta" solo se despliega si el usuario
-  // le da clic, para no tapar la lista con un formulario largo que la
-  // mayoría de las veces no se va a usar. Editar una cuenta existente
-  // siempre despliega el formulario (ver más abajo), sin depender de esto.
+  // Crear y editar se abren como ventanas encima de la lista.
   const [showCreateForm, setShowCreateForm] = useState(false);
   // Errores de campo mostrados EN VIVO (al salir del campo, no solo hasta
   // darle a "Crear cuenta") -- se marca "tocado" al perder el foco y desde
@@ -112,10 +114,23 @@ export default function Users() {
   const usernameError =
     touched.username && form.username && !isValidUsername(form.username) ? USERNAME_INVALID_MESSAGE : null;
 
-  // Filtro de país para la lista de cuentas -- solo tiene sentido para
+  // Filtro de región y país para la lista de cuentas -- solo tiene sentido para
   // superadmin: un admin ya solo ve (por RLS) las cuentas de su propia
   // oficina, así que nunca tendría nada que filtrar.
   const [accountCountryFilter, setAccountCountryFilter] = useState("");
+  const [accountSearchInput, setAccountSearchInput] = useState("");
+  const [accountSearchQuery, setAccountSearchQuery] = useState("");
+  const filterKey = accountCountryFilter;
+  const cacheKey = `users:${session?.user?.id ?? ""}:${isSuperadmin}:${callerOfficeId ?? ""}:${filterKey}`;
+  const showingSkeleton = loading || loadedFilterKey !== filterKey;
+  const normalizedSearch = accountSearchQuery.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const visibleAccounts = normalizedSearch
+    ? accounts.filter((account) =>
+        [account.full_name, account.username, account.email].some((value) =>
+          value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(normalizedSearch)
+        )
+      )
+    : accounts;
 
   // Menú de acciones por fila (Editar / Restablecer / Activar-Desactivar) --
   // antes eran 3 botones de texto apilados, que obligaban a la tabla a
@@ -126,34 +141,70 @@ export default function Users() {
 
   const isEditing = editingId !== null;
 
-  const visibleAccounts =
-    isSuperadmin && accountCountryFilter
-      ? accounts.filter((account) => account.offices?.country === accountCountryFilter)
-      : accounts;
-
-  async function loadAccounts() {
-    setLoading(true);
-    const { data } = await supabase
+  async function loadAccounts(quiet = false) {
+    const requestId = ++loadRequestId.current;
+    const requestedFilterKey = filterKey;
+    if (!quiet) setLoading(true);
+    const officeRelation = accountCountryFilter ? "offices!inner(name, country)" : "offices(name, country)";
+    let query = supabase
       .from("profiles")
-      .select("*, companies(name), offices(name, country), user_roles(role)")
+      .select(`*, companies(name), ${officeRelation}, user_roles(role)`)
       .order("full_name");
-    setAccounts((data as Account[] | null) ?? []);
+    if (isSuperadmin && accountCountryFilter) {
+      query = query.eq("offices.country", accountCountryFilter);
+    }
+    const { data, error } = await coalesceViewRequest(cacheKey, async () => await query);
+    if (requestId !== loadRequestId.current) return;
+    if (!error) {
+      const rows = (data as Account[] | null) ?? [];
+      setAccounts(rows);
+      writeViewCache(cacheKey, rows);
+    }
+    setLoadedFilterKey(requestedFilterKey);
     setLoading(false);
   }
 
+  useLayoutEffect(() => {
+    const cached = readViewCache<Account[]>(cacheKey);
+    if (cached) {
+      loadRequestId.current += 1;
+      setAccounts(cached.value);
+      setLoadedFilterKey(filterKey);
+      setLoading(false);
+      if (cached.fresh) return;
+    }
+    void loadAccounts(Boolean(cached));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountCountryFilter, session?.user?.id, isSuperadmin, callerOfficeId]);
+
   useEffect(() => {
-    loadAccounts();
-    supabase
-      .from("companies")
-      .select("id, name")
-      .order("name")
-      .then(({ data }) => setCompanies(data ?? []));
-    supabase
-      .from("offices")
-      .select("id, name, country")
-      .order("name")
-      .then(({ data }) => setOffices(data ?? []));
-  }, []);
+    const companyKey = `users:companies:${session?.user?.id ?? ""}`;
+    const officeKey = `users:offices:${session?.user?.id ?? ""}`;
+    const companiesCached = readViewCache<Company[]>(companyKey);
+    const officesCached = readViewCache<Office[]>(officeKey);
+    if (companiesCached) setCompanies(companiesCached.value);
+    if (officesCached) setOffices(officesCached.value);
+    if (!companiesCached?.fresh) {
+      void coalesceViewRequest(companyKey, async () => await supabase.from("companies").select("id, name").order("name"))
+        .then(({ data, error }) => {
+          if (!error) {
+            const rows = data ?? [];
+            setCompanies(rows);
+            writeViewCache(companyKey, rows);
+          }
+        });
+    }
+    if (!officesCached?.fresh) {
+      void coalesceViewRequest(officeKey, async () => await supabase.from("offices").select("id, name, country").order("name"))
+        .then(({ data, error }) => {
+          if (!error) {
+            const rows = data ?? [];
+            setOffices(rows);
+            writeViewCache(officeKey, rows);
+          }
+        });
+    }
+  }, [session?.user?.id]);
 
   // Si el admin que crea/edita tiene oficina asignada, se precarga y se
   // deja fijo el país/oficina en el formulario (los selectores quedan
@@ -209,13 +260,21 @@ export default function Users() {
     setTouched({ fullName: false, email: false, username: false });
   }
 
+  function closeCreateForm() {
+    if (saving) return;
+    setShowCreateForm(false);
+    setForm(emptyForm);
+    setError(null);
+    setTouched({ fullName: false, email: false, username: false });
+  }
+
   async function handleCreate() {
     // superadmin ve todo por rol, no por oficina -- nunca lleva office_id.
     const officeId = form.role === "superadmin" ? null : form.officeId || null;
     const { data, error: invokeError } = await supabase.functions.invoke("create-user", {
       body: {
         email: form.email,
-        username: form.username,
+        username: filterUsernameInput(form.email.split("@")[0] ?? ""),
         fullName: form.fullName,
         companyId: form.companyId,
         officeId,
@@ -368,7 +427,8 @@ export default function Users() {
     setForm(emptyForm);
     setShowCreateForm(false);
     setTouched({ fullName: false, email: false, username: false });
-    loadAccounts();
+    clearViewCache("users:");
+    void loadAccounts(true);
   }
 
   function openResetDialog(account: Account) {
@@ -440,11 +500,11 @@ export default function Users() {
       return;
     }
 
-    loadAccounts();
+    clearViewCache("users:");
+    void loadAccounts(true);
   }
 
-  // Campos compartidos entre "Nueva cuenta" (inline, plegable) y "Editar
-  // cuenta" (modal aislado, ver más abajo) -- un solo lugar para no
+  // Campos compartidos entre las ventanas de crear y editar -- un solo lugar para no
   // mantener dos copias del formulario.
   const formFields = (
     <>
@@ -473,7 +533,14 @@ export default function Users() {
           type="email"
           required
           value={form.email}
-          onChange={(e) => setForm({ ...form, email: filterEmailInput(e.target.value) })}
+          onChange={(e) => {
+            const email = filterEmailInput(e.target.value);
+            setForm((current) => ({
+              ...current,
+              email,
+              username: isEditing ? current.username : filterUsernameInput(email.split("@")[0] ?? ""),
+            }));
+          }}
           onBlur={() => touch("email")}
           className="input-field h-auto py-2"
         />
@@ -494,12 +561,13 @@ export default function Users() {
           type="text"
           required
           value={form.username}
-          onChange={(e) => setForm({ ...form, username: filterUsernameInput(e.target.value) })}
+          onChange={isEditing ? (e) => setForm({ ...form, username: filterUsernameInput(e.target.value) }) : undefined}
+          readOnly={!isEditing}
           onBlur={() => touch("username")}
-          className="input-field h-auto py-2"
+          className="input-field h-auto py-2 read-only:bg-page read-only:text-ink-soft"
         />
         {usernameError && <p className="mt-1 text-xs text-danger">{usernameError}</p>}
-        <p className="mt-1 text-xs text-ink-soft">Con esto (o el correo) inicia sesión.</p>
+        <p className="mt-1 text-xs text-ink-soft">{isEditing ? "Con esto (o el correo) inicia sesión." : "Se genera automáticamente a partir del correo."}</p>
       </div>
 
       <div>
@@ -556,6 +624,8 @@ export default function Users() {
           <label htmlFor="country" className="mb-1 block text-sm font-medium text-ink-soft">
             País
           </label>
+          <div className="flex items-center gap-2">
+          <CountryFlag code={form.country} />
           <select
             id="country"
             required
@@ -569,10 +639,11 @@ export default function Users() {
             </option>
             {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
               <option key={code} value={code}>
-                {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
+                {COUNTRY_LABELS[code] ?? code}
               </option>
             ))}
           </select>
+          </div>
           {officeLocked && (
             <p className="mt-1 text-xs text-ink-soft">Solo puedes crear/editar cuentas de tu propia oficina.</p>
           )}
@@ -664,11 +735,7 @@ export default function Users() {
         {!isEditing && (
           <button
             type="button"
-            onClick={() => {
-              setForm(emptyForm);
-              setError(null);
-              setShowCreateForm(false);
-            }}
+            onClick={closeCreateForm}
             className="btn-secondary"
           >
             Cancelar
@@ -681,8 +748,8 @@ export default function Users() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <h1 className="mb-6 font-display text-xl font-bold text-ink">Cuentas</h1>
+    <PageShell width="medium">
+      <PageHeader title="Cuentas" description="Administra usuarios, roles y acceso por oficina." />
 
       {tempPasswordInfo && (
         // Mismo patrón de ventana que "Editar cuenta" / "Restablecer
@@ -737,7 +804,7 @@ export default function Users() {
         </div>
       )}
 
-      {isEditing ? (
+      {isEditing && (
         // Editar cuenta como ventana aislada encima del resto (no un layout
         // nuevo/otra pestaña): mismo overlay + tarjeta blanca que ya usa
         // ConfirmDialog, con los colores/estilo de siempre.
@@ -752,52 +819,83 @@ export default function Users() {
             </form>
           </div>
         </div>
-      ) : (
-        <div className="card mb-6">
-          <button
-            type="button"
-            onClick={() => setShowCreateForm((s) => !s)}
-            className={`flex w-full items-center justify-between text-left ${showCreateForm ? "mb-4" : ""}`}
-          >
-            <h2 className="font-display text-base font-bold text-ink">Nueva cuenta</h2>
-            <span className="text-sm font-medium text-accent">
-              {showCreateForm ? "Ocultar ▲" : "+ Crear cuenta ▼"}
-            </span>
-          </button>
+      )}
 
-          {showCreateForm && (
+      <button
+        type="button"
+        onClick={() => {
+          setForm(emptyForm);
+          setError(null);
+          setTouched({ fullName: false, email: false, username: false });
+          setShowCreateForm(true);
+        }}
+        className="btn-primary mb-6"
+      >
+        + Crear cuenta
+      </button>
+
+      {showCreateForm && !isEditing && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-6"
+          onClick={closeCreateForm}
+        >
+          <div className="modal my-8 w-full max-w-2xl" role="dialog" aria-modal="true" aria-labelledby="createAccountTitle" onClick={(event) => event.stopPropagation()}>
+            <h2 id="createAccountTitle" className="mb-4 font-display text-base font-bold text-ink">Crear cuenta</h2>
             <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
               {formFields}
             </form>
-          )}
+          </div>
         </div>
       )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-base font-bold text-ink">Cuentas registradas</h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <form onSubmit={(event) => { event.preventDefault(); setAccountSearchQuery(accountSearchInput); }} className="flex items-end gap-2">
+            <div>
+              <label htmlFor="accountSearch" className="mb-1 block text-xs font-medium text-ink-soft">Buscar colaborador</label>
+              <input
+                id="accountSearch"
+                type="search"
+                value={accountSearchInput}
+                onChange={(event) => {
+                  setAccountSearchInput(event.target.value);
+                  if (!event.target.value) setAccountSearchQuery("");
+                }}
+                placeholder="Nombre, usuario o correo"
+                className="input-field h-10 w-56 py-2"
+              />
+            </div>
+            <button type="submit" className="btn-secondary inline-flex h-10 items-center gap-2" aria-label="Buscar colaborador">
+              <Search size={16} aria-hidden="true" /> Buscar
+            </button>
+          </form>
         {isSuperadmin && (
-          <div>
-            <label htmlFor="accountCountryFilter" className="mb-1 block text-xs font-medium text-ink-soft">
-              País
-            </label>
-            <select
-              id="accountCountryFilter"
-              value={accountCountryFilter}
-              onChange={(e) => setAccountCountryFilter(e.target.value)}
-              className="input-field h-auto py-2"
-            >
-              <option value="">Todas</option>
-              {COUNTRY_ORDER.filter((code) => offices.some((o) => o.country === code)).map((code) => (
-                <option key={code} value={code}>
-                  {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label htmlFor="accountCountryFilter" className="mb-1 block text-xs font-medium text-ink-soft">
+                País
+              </label>
+              <div className="relative">
+                {accountCountryFilter && <CountryFlag code={accountCountryFilter} className="absolute left-3 top-1/2 h-4 w-6 -translate-y-1/2" />}
+                <select
+                  id="accountCountryFilter"
+                  value={accountCountryFilter}
+                  onChange={(event) => setAccountCountryFilter(event.target.value)}
+                  className={`input-field h-auto min-w-36 py-2 ${accountCountryFilter ? "pl-11" : ""}`}
+                >
+                  <option value="">Todos</option>
+                  <option value="MX">México</option>
+                  <option value="ES">España</option>
+                </select>
+              </div>
+            </div>
           </div>
         )}
+        </div>
       </div>
 
-      <div className="card overflow-x-auto p-0">
+      <div className="card min-h-80 overflow-x-auto p-0">
         {/* table-fixed + un ancho por columna (en vez de que cada columna
             crezca a lo que pida su contenido, como con el table-auto de
             antes) -- así un correo o nombre largo se trunca (con "..." y
@@ -820,25 +918,23 @@ export default function Users() {
             </tr>
           </thead>
           <tbody>
-            {loading && <TableSkeletonRows rows={5} columns={8} />}
-            {!loading && visibleAccounts.length === 0 && (
+            {showingSkeleton && <TableSkeletonRows rows={Math.max(5, Math.min(accounts.length, 10))} columns={8} />}
+            {!showingSkeleton && visibleAccounts.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-ink-soft">
-                  {accounts.length === 0
-                    ? "No hay cuentas registradas."
-                    : "No hay cuentas que coincidan con este filtro."}
+                <td colSpan={8} className="h-64 px-4 py-6 text-center align-middle text-ink-soft">
+                  {normalizedSearch || accountCountryFilter
+                    ? "No hay cuentas que coincidan con estos filtros."
+                    : "No hay cuentas registradas."}
                 </td>
               </tr>
             )}
-            {visibleAccounts.map((account) => {
+            {!showingSkeleton && visibleAccounts.map((account) => {
               const isSelf = account.id === session?.user.id;
               const accountIsElevated = account.user_roles.some(
                 (r) => r.role === "admin" || r.role === "superadmin"
               );
               const canEditAccount = isSuperadmin || !accountIsElevated;
-              const officeLabel = account.offices
-                ? `${COUNTRY_FLAGS[account.offices.country] ?? ""} ${account.offices.name}`
-                : "—";
+              const officeLabel = account.offices?.name ?? "—";
               const roleLabel = account.user_roles.map((r) => ROLE_LABELS[r.role] ?? r.role).join(", ") || "—";
               return (
                 <tr key={account.id} className="border-b border-line last:border-0">
@@ -855,6 +951,7 @@ export default function Users() {
                     {account.companies?.name ?? "—"}
                   </td>
                   <td className="truncate px-4 py-3 text-ink-soft" title={officeLabel}>
+                    {account.offices && <CountryFlag code={account.offices.country} className="mr-1 h-3 w-[18px]" />}
                     {officeLabel}
                   </td>
                   <td className="truncate px-4 py-3 text-ink-soft" title={roleLabel}>
@@ -885,7 +982,7 @@ export default function Users() {
                         <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
                         <div
                           role="menu"
-                          className="absolute right-4 top-full z-20 mt-1 w-56 rounded-lg border border-line bg-card p-1.5 shadow-lg"
+                          className="dropdown-popover absolute right-4 top-full z-20 mt-1 w-56 p-1.5"
                         >
                           <button
                             type="button"
@@ -1051,6 +1148,6 @@ export default function Users() {
         }}
         onCancel={() => setDeactivateTarget(null)}
       />
-    </div>
+    </PageShell>
   );
 }

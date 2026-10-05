@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
+import { clearViewCache, coalesceViewRequest } from "@/lib/viewCache";
 import { useAuth } from "@/hooks/useAuth";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PhotoUploadField } from "@/components/PhotoUploadField";
+import { PageHeader, PageShell } from "@/components/layout/PageShell";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { checkoutVisit } from "@/lib/checkout";
-import { TableSkeletonRows } from "@/components/Skeleton";
+import { Skeleton, TableSkeletonRows } from "@/components/Skeleton";
 import { copyToClipboard } from "@/lib/clipboard";
 import { preregistrationLink } from "@/lib/preregistrationLink";
 import { findFlaggedVisitor, flagVisitor, type FlaggedVisitorMatch } from "@/lib/flaggedVisitors";
@@ -18,7 +20,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Employee = Pick<Tables<"employees">, "id" | "full_name">;
 type Company = Pick<Tables<"companies">, "id" | "name">;
-type Division = Pick<Tables<"divisions">, "id" | "name">;
+type Division = Pick<Tables<"divisions">, "id" | "name" | "company_id">;
 type VisitType = Pick<Tables<"visit_types">, "id" | "name">;
 type OfficeFacility = { id: string; name: string; label: string; officeId: string };
 
@@ -82,6 +84,7 @@ export default function CheckIn() {
   const [tab, setTab] = useState<"registrar" | "dentro">("registrar");
   const [insideVisits, setInsideVisits] = useState<InsideVisit[]>([]);
   const [insideLoading, setInsideLoading] = useState(true);
+  const insideRequestId = useRef(0);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutTarget, setCheckoutTarget] = useState<InsideVisit | null>(null);
   // "Persona vetada": casilla opcional en el diálogo de confirmar salida,
@@ -94,7 +97,8 @@ export default function CheckIn() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [allDivisions, setAllDivisions] = useState<Division[]>([]);
+  const [divisionsLoading, setDivisionsLoading] = useState(true);
   const [visitTypes, setVisitTypes] = useState<VisitType[]>([]);
   const [visitorCompanySuggestions, setVisitorCompanySuggestions] = useState<string[]>([]);
   const [visitorName, setVisitorName] = useState("");
@@ -116,6 +120,7 @@ export default function CheckIn() {
   // Monterrey: Local 3, Envia.com) -- nada hardcodeado a un nombre de
   // oficina en particular, mismo criterio que "División" con las empresas.
   const [officeFacilities, setOfficeFacilities] = useState<OfficeFacility[]>([]);
+  const [facilitiesLoading, setFacilitiesLoading] = useState(true);
   const [visitDate, setVisitDate] = useState(todayLocal());
   const [visitTime, setVisitTime] = useState("");
   // Id de carpeta de Storage para las fotos de este intento de registro —
@@ -171,36 +176,30 @@ export default function CheckIn() {
   useEffect(() => {
     // Cualquier cuenta (admin o recepción) puede elegir cualquier empresa:
     // un solo mostrador de recepción atiende a las 4 empresas.
-    supabase
+    void coalesceViewRequest(`checkin:companies:${session?.user?.id ?? ""}`, async () => await supabase
       .from("companies")
       .select("id, name")
       .eq("active", true)
-      .order("name")
+      .order("name"))
       .then(({ data }) => setCompanies(data ?? []));
-  }, []);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (companyId) setSelectedCompanyId(companyId);
   }, [companyId]);
 
   useEffect(() => {
-    // El campo "División" solo aparece si la empresa elegida tiene
-    // divisiones registradas en la base de datos — nada hardcodeado a un
-    // nombre de empresa en particular.
-    if (!selectedCompanyId) {
-      setDivisions([]);
-      return;
-    }
-    supabase
-      .from("divisions")
-      .select("id, name")
-      .eq("company_id", selectedCompanyId)
-      .eq("active", true)
-      .order("name")
-      .then(({ data }) => setDivisions(data ?? []));
-  }, [selectedCompanyId]);
+    // Se cargan una vez para que al cambiar de empresa el campo División
+    // se actualice de inmediato y no aparezca después de otro request.
+    void coalesceViewRequest(`checkin:divisions:${session?.user?.id ?? ""}`, async () => await supabase.from("divisions").select("id, name, company_id").eq("active", true).order("name"))
+      .then(({ data }) => {
+        setAllDivisions(data ?? []);
+        setDivisionsLoading(false);
+      });
+  }, [session?.user?.id]);
 
   useEffect(() => {
+    setFacilitiesLoading(true);
     // superadmin nunca se restringe por su propia oficina -- aunque su
     // perfil tenga una office_id asignada (puede pasar si se le asignó una
     // por error, o si algún día se le da una por conveniencia de UI), debe
@@ -228,6 +227,7 @@ export default function CheckIn() {
               officeId: f.office_id,
             }))
           );
+          setFacilitiesLoading(false);
         });
       return () => {
         cancelled = true;
@@ -244,9 +244,10 @@ export default function CheckIn() {
         .eq("office_id", officeId)
         .eq("active", true)
         .order("name")
-        .then(({ data }) =>
-          setOfficeFacilities((data ?? []).map((f) => ({ ...f, label: f.name, officeId })))
-        );
+        .then(({ data }) => {
+          setOfficeFacilities((data ?? []).map((f) => ({ ...f, label: f.name, officeId })));
+          setFacilitiesLoading(false);
+        });
       return;
     }
 
@@ -263,6 +264,7 @@ export default function CheckIn() {
       const detectedCountry = data?.detectedCountry as string | null | undefined;
       if (!detectedCountry) {
         setOfficeFacilities([]);
+        setFacilitiesLoading(false);
         return;
       }
 
@@ -273,7 +275,10 @@ export default function CheckIn() {
         .eq("active", true);
       const officeIds = (countryOffices ?? []).map((o) => o.id);
       if (cancelled || officeIds.length === 0) {
-        if (!cancelled) setOfficeFacilities([]);
+        if (!cancelled) {
+          setOfficeFacilities([]);
+          setFacilitiesLoading(false);
+        }
         return;
       }
 
@@ -302,6 +307,7 @@ export default function CheckIn() {
           officeId: f.office_id,
         }))
       );
+      setFacilitiesLoading(false);
     });
     return () => {
       cancelled = true;
@@ -312,23 +318,23 @@ export default function CheckIn() {
     // Sin filtrar por empresa a propósito: quien recibe puede ser cualquier
     // colaborador dado de alta, sin importar a qué empresa esté asignada la
     // visita (varias empresas comparten una sola recepción física).
-    supabase
+    void coalesceViewRequest(`checkin:employees:${session?.user?.id ?? ""}`, async () => await supabase
       .from("employees")
       .select("id, full_name")
       .eq("active", true)
-      .order("full_name")
+      .order("full_name"))
       .then(({ data }) => setEmployees(data ?? []));
-  }, []);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     // "Empresa del visitante" aprende de lo que más se repite en visitas
     // reales ya registradas, y se completa con una lista de sugerencias
     // comunes (paqueterías, proveedores frecuentes) mientras se acumula
     // historial propio.
-    supabase
+    void coalesceViewRequest(`checkin:visitor-companies:${session?.user?.id ?? ""}`, async () => await supabase
       .from("visits")
       .select("visitor_company")
-      .not("visitor_company", "is", null)
+      .not("visitor_company", "is", null))
       .then(({ data }) => {
         const counts = new Map<string, { label: string; count: number }>();
         for (const row of data ?? []) {
@@ -344,20 +350,21 @@ export default function CheckIn() {
           .map((entry) => entry.label);
         setVisitorCompanySuggestions(mergeVisitorCompanySuggestions(frequent));
       });
-  }, []);
+  }, [session?.user?.id]);
 
   useEffect(() => {
-    supabase
+    void coalesceViewRequest(`checkin:visit-types:${session?.user?.id ?? ""}`, async () => await supabase
       .from("visit_types")
       .select("id, name")
       .eq("active", true)
-      .order("name")
+      .order("name"))
       .then(({ data }) => setVisitTypes(data ?? []));
-  }, []);
+  }, [session?.user?.id]);
 
-  async function loadInsideVisits() {
-    setInsideLoading(true);
-    const { data } = await supabase
+  async function loadInsideVisits(quiet = false) {
+    const requestId = ++insideRequestId.current;
+    if (!quiet) setInsideLoading(true);
+    const { data } = await coalesceViewRequest(`checkin:inside:${session?.user?.id ?? ""}`, async () => await supabase
       .from("visits")
       .select(
         "id, folio, visitor_name, check_in_at, employees(full_name), companies(name)"
@@ -368,7 +375,8 @@ export default function CheckIn() {
       // imposible de marcar como salida desde esta pantalla -- aunque el
       // guardia sí lo seguía viendo, porque su consulta nunca filtró fecha.
       .eq("status", "dentro")
-      .order("check_in_at", { ascending: false });
+      .order("check_in_at", { ascending: false }));
+    if (requestId !== insideRequestId.current) return;
     setInsideVisits((data as InsideVisit[] | null) ?? []);
     setInsideLoading(false);
   }
@@ -410,7 +418,10 @@ export default function CheckIn() {
 
     setCheckoutFlagged(false);
     setCheckoutNote("");
-    loadInsideVisits();
+    clearViewCache("checkin:inside:");
+    clearViewCache("dashboard:");
+    clearViewCache("history:");
+    void loadInsideVisits(true);
   }
 
   // Advertencia de "persona vetada": se busca con debounce mientras
@@ -670,6 +681,10 @@ export default function CheckIn() {
       return;
     }
 
+    if (facilitiesLoading || divisionsLoading) {
+      setError("Espera a que terminen de cargar las opciones del registro.");
+      return;
+    }
     if (hasFacilities && !facility) {
       setError("Selecciona qué instalación visitan.");
       return;
@@ -746,6 +761,10 @@ export default function CheckIn() {
       return;
     }
 
+    clearViewCache("dashboard:");
+    clearViewCache("history:");
+    clearViewCache("checkin:inside:");
+
     if (preregistrationId) {
       // Al reutilizar el mismo QR en un reingreso, la fecha/hora del
       // pre-registro se actualiza a las de este check-in real (no se queda
@@ -777,7 +796,7 @@ export default function CheckIn() {
     });
 
     setFolio(data.folio);
-    loadInsideVisits();
+    void loadInsideVisits(true);
 
     // Se limpia solo a los 5 segundos -- da tiempo a ver/verificar el folio
     // y el pase generado antes de que desaparezcan, sin que nadie tenga que
@@ -790,6 +809,7 @@ export default function CheckIn() {
 
   const hostEmployeeName = employees.find((employee) => employee.id === hostEmployeeId)?.full_name;
   const companyName = companies.find((company) => company.id === selectedCompanyId)?.name ?? null;
+  const divisions = allDivisions.filter((item) => item.company_id === selectedCompanyId);
   const hasDivisions = divisions.length > 0;
   const hasFacilities = officeFacilities.length > 0;
   // `facility` (el estado) guarda el LABEL mostrado en el <select> (no el
@@ -800,43 +820,46 @@ export default function CheckIn() {
   const matchedFacility = officeFacilities.find((f) => f.label === facility);
 
   return (
-    <div className="min-h-screen bg-paper">
-      <div className="mx-auto max-w-6xl px-6 py-6">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="font-display text-xl font-bold text-ink">Registrar visita</h1>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={async () => {
-                if (!canCopyPreregLink || !profile) return;
-                const ok = await copyToClipboard(preregistrationLink(window.location.origin, profile.office_id));
-                setLinkCopied(ok);
-              }}
-              disabled={!canCopyPreregLink}
-              className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint disabled:opacity-50"
-            >
-              {linkCopied === true
-                ? "¡Copiada!"
-                : linkCopied === false
-                  ? "No se pudo, cópiala tú"
-                  : "Copiar liga de pre-registro"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab(tab === "registrar" ? "dentro" : "registrar")}
-              className="text-sm font-medium text-accent hover:text-accent-dark"
-            >
-              {tab === "registrar"
-                ? `Ver visitantes dentro${insideVisits.length > 0 ? ` (${insideVisits.length})` : ""}`
-                : "Volver a registrar"}
-            </button>
-          </div>
-        </div>
+    <div className="bg-paper">
+      <PageShell width="medium">
+        <PageHeader
+          title="Registrar visita"
+          description="Captura los datos y verifica el pase antes de registrar la entrada."
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!canCopyPreregLink || !profile) return;
+                  const ok = await copyToClipboard(preregistrationLink(window.location.origin, profile.office_id));
+                  setLinkCopied(ok);
+                }}
+                disabled={!canCopyPreregLink}
+                className="rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-tint disabled:opacity-50"
+              >
+                {linkCopied === true
+                  ? "¡Copiada!"
+                  : linkCopied === false
+                    ? "No se pudo, cópiala tú"
+                    : "Copiar liga de pre-registro"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab(tab === "registrar" ? "dentro" : "registrar")}
+                className="text-sm font-medium text-accent hover:text-accent-dark"
+              >
+                {tab === "registrar"
+                  ? `Ver visitantes dentro${insideVisits.length > 0 ? ` (${insideVisits.length})` : ""}`
+                  : "Volver a registrar"}
+              </button>
+            </>
+          }
+        />
 
         {tab === "dentro" ? (
           <div>
             {checkoutError && <p className="mb-3 text-sm text-danger">{checkoutError}</p>}
-            <div className="card overflow-hidden p-0">
+            <div className="card min-h-80 overflow-hidden p-0">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="tbl-head border-b border-line text-ink-soft">
@@ -852,12 +875,12 @@ export default function CheckIn() {
                 {insideLoading && <TableSkeletonRows rows={5} columns={6} />}
                 {!insideLoading && insideVisits.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-ink-soft">
+                    <td colSpan={6} className="h-64 px-4 py-6 text-center align-middle text-ink-soft">
                       No hay visitantes dentro en este momento.
                     </td>
                   </tr>
                 )}
-                {insideVisits.map((visit) => (
+                {!insideLoading && insideVisits.map((visit) => (
                   <tr key={visit.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-3 font-medium text-ink">{visit.folio}</td>
                     <td className="px-4 py-3 text-ink">{visit.visitor_name}</td>
@@ -885,13 +908,13 @@ export default function CheckIn() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px] lg:items-start">
-            <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start xl:grid-cols-[minmax(0,1fr)_400px]">
+            <div className="min-w-0 space-y-5">
               {!scannerOpen && !preregistrationId && (
                 <button
                   type="button"
                   onClick={() => setScannerOpen(true)}
-                  className="w-full rounded-md border border-accent bg-card px-3 py-2 text-sm font-medium text-accent hover:bg-accent-tint"
+                  className="inline-flex items-center rounded-md border border-accent bg-card px-4 py-2 text-sm font-medium text-accent hover:bg-accent-tint"
                 >
                   Escanear QR de pre-registro
                 </button>
@@ -1075,7 +1098,12 @@ export default function CheckIn() {
                     </div>
                   )}
 
-                  {hasDivisions && (
+                  {selectedCompanyId && divisionsLoading ? (
+                    <div className="sm:col-span-2" aria-hidden="true">
+                      <Skeleton className="mb-2 h-4 w-20" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : hasDivisions ? (
                     <div className="sm:col-span-2">
                       <label htmlFor="division" className="mb-1 block text-sm font-medium text-ink-soft">
                         División <span className="text-accent">*</span>
@@ -1096,9 +1124,14 @@ export default function CheckIn() {
                         ))}
                       </select>
                     </div>
-                  )}
+                  ) : null}
 
-                  {hasFacilities && (
+                  {facilitiesLoading ? (
+                    <div aria-hidden="true">
+                      <Skeleton className="mb-2 h-4 w-44" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : hasFacilities ? (
                     <div>
                       <label htmlFor="facility" className="mb-1 block text-sm font-medium text-ink-soft">
                         Instalación que visitan <span className="text-accent">*</span>
@@ -1119,7 +1152,7 @@ export default function CheckIn() {
                         ))}
                       </select>
                     </div>
-                  )}
+                  ) : null}
 
                   <div>
                     <label htmlFor="visitorPhone" className="mb-1 block text-sm font-medium text-ink-soft">
@@ -1201,9 +1234,10 @@ export default function CheckIn() {
                 <h2 className="font-display text-sm font-bold uppercase tracking-wide text-accent">
                   Fotografías
                 </h2>
-                <div className="mb-5 mt-2 border-b border-line" />
+                <p className="mt-1 text-xs text-ink-soft">Agrega la foto del visitante y de su identificación.</p>
+                <div className="mb-4 mt-3 border-b border-line" />
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                   <PhotoUploadField
                     label="Fotografía del visitante"
                     companyId={selectedCompanyId}
@@ -1296,7 +1330,7 @@ export default function CheckIn() {
               <button
                 type="submit"
                 form="checkin-form"
-                disabled={submitting || !!folio}
+                disabled={submitting || facilitiesLoading || divisionsLoading || !!folio}
                 className="btn-primary mt-4 h-auto w-full py-3"
               >
                 {folio ? "Pase generado" : submitting ? "Registrando..." : "Registrar visita"}
@@ -1316,7 +1350,7 @@ export default function CheckIn() {
             </div>
           </div>
         )}
-      </div>
+      </PageShell>
 
       <ConfirmDialog
         open={!!checkoutTarget}

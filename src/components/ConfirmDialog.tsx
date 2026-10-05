@@ -1,10 +1,12 @@
+import { TriangleAlert } from "lucide-react";
+
 type ConfirmDialogProps = {
   open: boolean;
   title: string;
   message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  variant?: "default" | "danger";
+  variant?: "default" | "danger" | "warning";
   onConfirm: () => void;
   onCancel: () => void;
   children?: React.ReactNode;
@@ -29,8 +31,20 @@ export function ConfirmDialog({
       onClick={onCancel}
     >
       <div className="modal max-w-sm" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-display text-lg font-bold text-ink">{title}</h2>
-        {message && <p className="mt-2 text-sm text-ink-soft">{message}</p>}
+        {variant === "warning" ? (
+          <div className="rounded-lg border border-warn/40 bg-warn-tint p-4">
+            <div className="flex items-start gap-2">
+              <TriangleAlert size={21} className="mt-0.5 shrink-0 text-warn" aria-hidden="true" />
+              <h2 className="font-display text-lg font-bold text-ink">{title}</h2>
+            </div>
+            {message && <p className="mt-2 text-sm text-ink-soft">{message}</p>}
+          </div>
+        ) : (
+          <>
+            <h2 className="font-display text-lg font-bold text-ink">{title}</h2>
+            {message && <p className="mt-2 text-sm text-ink-soft">{message}</p>}
+          </>
+        )}
         {children && <div className="mt-4">{children}</div>}
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onCancel} className="btn-secondary">

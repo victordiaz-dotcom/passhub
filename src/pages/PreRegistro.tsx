@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { clearViewCache } from "@/lib/viewCache";
 import { AutoCompleteInput } from "@/components/AutoCompleteInput";
 import { mergeVisitorCompanySuggestions } from "@/lib/visitorCompanySuggestions";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionError";
-import { COUNTRY_FLAGS } from "@/lib/countryFlags";
+import { CountryFlag } from "@/components/CountryFlag";
 import { isValidName } from "@/lib/nameValidation";
 import { filterNameInput, filterPhoneInput, filterEmailInput, isValidEmailFormat } from "@/lib/inputFilters";
 import {
@@ -620,6 +621,8 @@ export default function PreRegistro() {
       return;
     }
 
+    clearViewCache("history:preregs:");
+
     // El token va después de "#" (fragmento), no en la ruta ni en el query
     // string -- un fragmento nunca se manda al servidor en la petición HTTP
     // (a diferencia de un path segment o un ?query=), así que no queda en
@@ -682,7 +685,7 @@ export default function PreRegistro() {
                       : "border-line text-ink hover:border-accent"
                   }`}
                 >
-                  <span className="text-lg leading-none">{COUNTRY_FLAGS[office.country] ?? ""}</span>
+                  <CountryFlag code={office.country} />
                   {office.name}
                 </button>
               ))}

@@ -86,6 +86,15 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const slackApiKey = Deno.env.get("SLACK_USERS_API_KEY");
   const slackBotToken = Deno.env.get("SLACK_BOT_TOKEN");
+  // Cron usa una credencial de servidor guardada en Vault. No se acepta una
+  // llamada programada con el JWT de una persona ni con la anon key.
+  const scheduledCall = body?.scheduled === true && !!serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`;
+  if (body?.scheduled === true && !scheduledCall) {
+    return jsonResponse({ error: "No autorizado." }, 401);
+  }
+  if (scheduledCall && !countryChoice) {
+    return jsonResponse({ error: "El país es obligatorio para la sincronización diaria." }, 400);
+  }
 
   if (!slackApiKey) {
     return jsonResponse(
@@ -101,9 +110,9 @@ Deno.serve(async (req) => {
 
   const {
     data: { user: caller },
-  } = await callerClient.auth.getUser();
+  } = scheduledCall ? { data: { user: null } } : await callerClient.auth.getUser();
 
-  if (!caller) {
+  if (!scheduledCall && !caller) {
     return jsonResponse({ error: "No autorizado." }, 401);
   }
 
@@ -111,10 +120,9 @@ Deno.serve(async (req) => {
 
   // superadmin también puede sincronizar (igual que create-user/reset-user-password
   // /delete-user y el resto de RLS/funciones — ver migraciones 0042/0044).
-  const { data: callerRoleRows } = await adminClient
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", caller.id);
+  const { data: callerRoleRows } = scheduledCall
+    ? { data: [{ role: "superadmin" }] }
+    : await adminClient.from("user_roles").select("role").eq("user_id", caller!.id);
 
   const callerRoles = (callerRoleRows ?? []).map((r) => r.role);
   const callerIsAdmin = callerRoles.includes("admin") || callerRoles.includes("superadmin");
@@ -129,11 +137,9 @@ Deno.serve(async (req) => {
   // que sin este chequeo una cuenta desactivada con una sesión todavía
   // válida podía seguir usando esta función aunque ya no pudiera tocar
   // ninguna tabla directamente.
-  const { data: callerProfile } = await adminClient
-    .from("profiles")
-    .select("active, office_id")
-    .eq("id", caller.id)
-    .single();
+  const { data: callerProfile } = scheduledCall
+    ? { data: { active: true, office_id: null } }
+    : await adminClient.from("profiles").select("active, office_id").eq("id", caller!.id).single();
 
   if (!callerProfile?.active) {
     return jsonResponse({ error: "Tu cuenta está desactivada." }, 403);
@@ -189,8 +195,28 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Solo puedes sincronizar colaboradores de tu país." }, 403);
   }
 
+  // En el directorio, algunas personas de Francia e Italia vienen con
+  // country = ES porque trabajan desde Madrid. El centro de costos indica
+  // su país real; el departamento se usa solo cuando el centro no lo indica.
+  // No interpretamos "IT Envia" como Italia: ahí IT significa tecnología.
+  const MEXICO_OFFICE_EXCEPTION_SLACK_ID = "U054H8M84MN";
+  function resolveEmployeeCountry(user: Record<string, unknown>): string | null {
+    const sourceCountry = typeof user.country === "string" ? user.country.trim().toUpperCase() : "";
+    // Luisa trabaja con la recepción de Monterrey aunque el directorio
+    // corporativo indique Colombia. La excepción se limita a su Slack ID.
+    if (sourceCountry === "CO" && user.slack_id === MEXICO_OFFICE_EXCEPTION_SLACK_ID) return "MX";
+    if (sourceCountry !== "ES") return sourceCountry || null;
+
+    const costCenter = typeof user.cost_center === "string" ? user.cost_center.trim().toUpperCase() : "";
+    const centerCountry = costCenter.match(/(?:^|[\s,])(ES|FR|IT)$/)?.[1];
+    if (centerCountry) return centerCountry;
+
+    const department = typeof user.department === "string" ? user.department.trim().toUpperCase() : "";
+    return department.match(/\b(FR|IT)$/)?.[1] ?? "ES";
+  }
+
   // Francia e Italia se atienden desde la oficina de España. Conservamos
-  // su country real para el filtro, pero les asignamos la oficina española
+  // su país real para el filtro, pero les asignamos la oficina española
   // para que el admin de España los vea conforme a RLS.
   function resolveOfficeId(country: unknown): string | null {
     const countryCode = typeof country === "string" ? country.trim().toUpperCase() : "";
@@ -327,7 +353,7 @@ Deno.serve(async (req) => {
       !PLACEHOLDER_TEAM_LEAD_PREFIX.test((u.real_name as string).trim()) &&
       !PLACEHOLDER_EXACT_NAMES.has((u.real_name as string).trim().toLowerCase()) &&
       typeof u.country === "string" &&
-      syncedCountries.has(u.country.trim().toUpperCase())
+      syncedCountries.has(resolveEmployeeCountry(u) ?? "")
   );
 
   if (validUsers.length === 0) {
@@ -336,7 +362,7 @@ Deno.serve(async (req) => {
 
   // Restringimos también por oficina antes de construir cualquier upsert.
   const scopedUsers = callerOfficeId
-    ? validUsers.filter((u) => resolveOfficeId(u.country) === callerOfficeId)
+    ? validUsers.filter((u) => resolveOfficeId(resolveEmployeeCountry(u)) === callerOfficeId)
     : validUsers;
 
   if (scopedUsers.length === 0) {
@@ -382,8 +408,8 @@ Deno.serve(async (req) => {
     const full_name = (u.real_name as string).trim();
     const email = emailBySlackId.get(slackId);
     const company_id = resolveCompanyId(u.organization);
-    const country = typeof u.country === "string" && u.country.trim() ? u.country.trim().toUpperCase() : null;
-    const office_id = resolveOfficeId(u.country);
+    const country = resolveEmployeeCountry(u);
+    const office_id = resolveOfficeId(country);
 
     if (email) {
       rowsWithEmail.push({ slack_id: slackId, full_name, company_id, active: true, email, country, office_id });

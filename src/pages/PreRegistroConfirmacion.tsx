@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import QRCodeStyling from "qr-code-styling";
+import { ErrorScreen } from "@/components/ErrorScreen";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PREREG_T,
@@ -62,6 +63,9 @@ export default function PreRegistroConfirmacion() {
   const [searchParams] = useSearchParams();
   const [details, setDetails] = useState<Preregistration | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState(500);
+  const [errorSource, setErrorSource] = useState<"missing" | "load" | "unexpected" | "server" | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [zoomedSrc, setZoomedSrc] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>(() => resolveInitialLang(searchParams.get("lang")));
@@ -70,6 +74,10 @@ export default function PreRegistroConfirmacion() {
   function changeLang(next: Lang) {
     setLang(next);
     storeLang(next);
+    if (errorSource === "missing") setError(PREREG_T[next].missingTokenInUrl);
+    if (errorSource === "load") setError(PREREG_T[next].loadErrorFallback);
+    if (errorSource === "unexpected") setError(PREREG_T[next].unexpectedResponse);
+    if (errorSource === "server" && serverError) setError(translateServerError(serverError, next));
   }
 
   const qrContainerRef = useRef<HTMLDivElement>(null);
@@ -80,33 +88,63 @@ export default function PreRegistroConfirmacion() {
     setLoading(true);
     setDetails(null);
     setError(null);
+    setErrorStatus(500);
+    setErrorSource(null);
+    setServerError(null);
     qrCodeRef.current = null;
 
     if (!token) {
       setLoading(false);
+      setErrorStatus(400);
+      setErrorSource("missing");
       setError(t.missingTokenInUrl);
       return;
     }
 
     supabase.functions
       .invoke("public-preregister", { body: { action: "get", token } })
-      .then(({ data, error: invokeError }) => {
+      .then(async ({ data, error: invokeError }) => {
         if (cancelled) return;
-        setLoading(false);
 
         if (invokeError) {
           console.error(invokeError);
-          setError(t.loadErrorFallback);
+          const response = (invokeError as { context?: Response }).context;
+          let message: string = t.loadErrorFallback;
+          let rawMessage: string | null = null;
+          if (response && typeof response.clone === "function") {
+            try {
+              const payload = await response.clone().json() as { error?: string };
+              if (payload.error) {
+                rawMessage = payload.error;
+                message = translateServerError(payload.error, lang);
+              }
+            } catch {
+              // Si la respuesta no contiene JSON, se conserva el texto seguro.
+            }
+          }
+          if (cancelled) return;
+          setLoading(false);
+          setErrorStatus(response?.status ?? 503);
+          setErrorSource(rawMessage ? "server" : "load");
+          setServerError(rawMessage);
+          setError(message);
           return;
         }
 
+        setLoading(false);
+
         if (data?.error) {
+          setErrorStatus(400);
+          setErrorSource("server");
+          setServerError(data.error);
           setError(translateServerError(data.error, lang));
           return;
         }
 
         if (!data?.preregistration) {
           console.error("Respuesta inesperada de public-preregister:", data);
+          setErrorStatus(502);
+          setErrorSource("unexpected");
           setError(t.unexpectedResponse);
           return;
         }
@@ -117,6 +155,8 @@ export default function PreRegistroConfirmacion() {
         if (cancelled) return;
         console.error(err);
         setLoading(false);
+        setErrorStatus(503);
+        setErrorSource("load");
         setError(t.loadErrorFallback);
       });
     return () => { cancelled = true; };
@@ -187,9 +227,17 @@ export default function PreRegistroConfirmacion() {
 
   if (error || !details) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-        <div className="card w-full max-w-sm p-8 text-center">
-          <div className="mb-2 flex justify-end gap-1 text-xs font-medium">
+      <ErrorScreen
+        status={errorStatus}
+        locale={lang}
+        title={errorStatus >= 500 ? t.passLoadErrorTitle : t.notAvailableTitle}
+        description={error ?? t.notAvailableFallback}
+        primaryLabel={errorStatus >= 500 ? t.retry : t.goToPrereg}
+        primaryHref="/pre-register"
+        onRetry={errorStatus >= 500 ? () => window.location.reload() : undefined}
+        secondaryLabel={t.goBack}
+        headerAction={
+          <div className="flex justify-end gap-1 text-xs font-medium">
             <button
               type="button"
               onClick={() => changeLang("es")}
@@ -206,10 +254,8 @@ export default function PreRegistroConfirmacion() {
               EN
             </button>
           </div>
-          <h1 className="mb-2 font-display text-xl font-bold text-ink">{t.notAvailableTitle}</h1>
-          <p className="text-sm text-danger">{error ?? t.notAvailableFallback}</p>
-        </div>
-      </div>
+        }
+      />
     );
   }
 

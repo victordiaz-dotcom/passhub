@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Camera, ChevronDown, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Mismos límites que ya aplica el bucket visit-photos en Supabase (Storage
@@ -70,34 +71,62 @@ export function PhotoUploadField({
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuId = useId();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const uploadedPathRef = useRef<string | null>(null);
+  const uploadSequenceRef = useRef(0);
+  const currentPathRef = useRef<string | null>(null);
 
   const path = companyId && sessionId ? `${companyId}/${sessionId}/${fileName}` : null;
 
-  // Si la empresa (o el id de sesión) cambia después de haber subido la
-  // foto, la ruta anterior ya no aplica: se limpia el estado para no dar
-  // por buena una foto que en realidad quedó en otra carpeta.
   useEffect(() => {
-    if (uploadedPathRef.current && uploadedPathRef.current !== path) {
+    if (!menuOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [menuOpen]);
+
+  // Una foto elegida o subida pertenece a la ruta de la sesión actual.
+  useEffect(() => {
+    if (currentPathRef.current !== path) {
+      uploadSequenceRef.current += 1;
       setUploaded(false);
       setPreviewUrl(null);
+      setUploading(false);
+      setError(null);
+      setMenuOpen(false);
       onPreviewChange?.(null);
       onUploadedChange(false);
       uploadedPathRef.current = null;
+      currentPathRef.current = path;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
   useEffect(() => {
+    uploadSequenceRef.current += 1;
     setPreviewUrl(null);
     setUploaded(false);
     setUploading(false);
     setError(null);
+    setMenuOpen(false);
     uploadedPathRef.current = null;
     onPreviewChange?.(null);
     onUploadedChange(false);
-    if (inputRef.current) inputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetSignal]);
 
@@ -105,52 +134,59 @@ export function PhotoUploadField({
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [previewUrl]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    // Permite volver a elegir el mismo archivo tras un fallo de subida.
+    e.target.value = "";
     if (!file || !path) return;
 
     setError(null);
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       setError("Formato no permitido. Usa JPG, PNG, WEBP o HEIC.");
-      if (inputRef.current) inputRef.current.value = "";
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
       setError("La foto pesa más de 10MB. Usa una foto más liviana.");
-      if (inputRef.current) inputRef.current.value = "";
       return;
     }
 
+    const uploadSequence = ++uploadSequenceRef.current;
     setUploaded(false);
     onUploadedChange(false);
     setUploading(true);
+    const initialPreviewUrl = URL.createObjectURL(file);
+    setPreviewUrl(initialPreviewUrl);
+    onPreviewChange?.(initialPreviewUrl);
 
     const compressed = await compressImage(file);
+    if (uploadSequence !== uploadSequenceRef.current) return;
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    const localUrl = URL.createObjectURL(compressed);
-    setPreviewUrl(localUrl);
-    onPreviewChange?.(localUrl);
+    if (compressed !== file) {
+      const compressedPreviewUrl = URL.createObjectURL(compressed);
+      setPreviewUrl(compressedPreviewUrl);
+      onPreviewChange?.(compressedPreviewUrl);
+    }
 
     // upsert: true sobre la misma ruta fija de esta sección — una foto
     // nueva reemplaza a la anterior en Storage, nunca se acumulan.
-    const { error: uploadError } = await supabase.storage
-      .from("visit-photos")
-      .upload(path, compressed, { contentType: compressed.type, upsert: true });
+    let uploadError: unknown;
+    try {
+      ({ error: uploadError } = await supabase.storage
+        .from("visit-photos")
+        .upload(path, compressed, { contentType: compressed.type, upsert: true }));
+    } catch (caughtError) {
+      uploadError = caughtError;
+    }
 
+    if (uploadSequence !== uploadSequenceRef.current) return;
     setUploading(false);
 
     if (uploadError) {
       console.error(uploadError);
-      setError("No se pudo subir la foto. Intenta de nuevo.");
-      setPreviewUrl(null);
-      onPreviewChange?.(null);
-      URL.revokeObjectURL(localUrl);
-      if (inputRef.current) inputRef.current.value = "";
+      setError("La foto se previsualiza, pero no se guardó. Intenta de nuevo.");
       return;
     }
 
@@ -160,13 +196,18 @@ export function PhotoUploadField({
   }
 
   return (
-    <div>
-      <p className="mb-2 text-center text-sm text-ink-soft">{label}</p>
-      {/* Sin el atributo capture: en móvil el sistema ofrece cámara Y
-          galería (antes, con capture="environment", se saltaba directo a
-          la cámara sin dar opción de elegir una foto ya tomada). */}
+    <div className="rounded-lg border border-line bg-surface-soft p-3 sm:p-4">
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileChange}
+        disabled={disabled || uploading}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
         type="file"
         accept="image/*"
         onChange={handleFileChange}
@@ -174,20 +215,53 @@ export function PhotoUploadField({
         className="hidden"
       />
 
-      {previewUrl && (
-        <div className="mb-2 flex h-32 items-center justify-center overflow-hidden rounded-md border border-line bg-paper">
-          <img src={previewUrl} alt={label} className="h-full w-full object-contain" />
+      <div className="flex items-center gap-4">
+        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line bg-card sm:h-28 sm:w-28">
+          {previewUrl ? (
+            <img src={previewUrl} alt={label} className="h-full w-full object-contain" />
+          ) : (
+            <Camera aria-hidden="true" size={24} className="text-ink-soft/60" />
+          )}
         </div>
-      )}
-
-      <button
-        type="button"
-        disabled={disabled || uploading}
-        onClick={() => inputRef.current?.click()}
-        className="btn-primary h-auto w-full py-3 disabled:opacity-60"
-      >
-        {uploading ? "Subiendo foto..." : uploaded ? "Cambiar foto" : "Tomar / seleccionar foto"}
-      </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">{label}</p>
+          <p className="mt-1 text-xs text-ink-soft">
+            {uploaded ? "Foto guardada" : uploading ? "Guardando foto..." : "JPG, PNG, WEBP o HEIC · máximo 10 MB"}
+          </p>
+          <div ref={menuRef} className="relative mt-3 w-fit">
+            <button
+              type="button"
+              disabled={disabled || uploading}
+              aria-expanded={menuOpen}
+              aria-controls={menuId}
+              onClick={() => setMenuOpen((open) => !open)}
+              className="inline-flex items-center gap-2 rounded-md border border-accent bg-card px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent-tint disabled:opacity-50"
+            >
+              <Camera aria-hidden="true" size={15} />
+              {uploaded || previewUrl ? "Cambiar foto" : "Agregar foto"}
+              <ChevronDown aria-hidden="true" size={14} />
+            </button>
+            {menuOpen && (
+              <div id={menuId} className="dropdown-popover absolute right-0 top-full z-20 mt-1 w-52 p-1.5 sm:left-0 sm:right-auto">
+                <button
+                  type="button"
+                  onClick={() => { setMenuOpen(false); cameraInputRef.current?.click(); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-accent-tint"
+                >
+                  <Camera aria-hidden="true" size={16} /> Usar cámara
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMenuOpen(false); galleryInputRef.current?.click(); }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-accent-tint"
+                >
+                  <ImageIcon aria-hidden="true" size={16} /> Elegir de galería
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {uploading && (
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
@@ -196,10 +270,10 @@ export function PhotoUploadField({
       )}
 
       {uploaded && !uploading && (
-        <p className="mt-2 text-center text-xs font-medium text-accent-dark">✓ Foto lista</p>
+        <p className="mt-2 text-xs font-medium text-accent-dark">✓ Foto lista</p>
       )}
 
-      {error && <p className="mt-2 text-center text-xs text-danger">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
     </div>
   );
 }

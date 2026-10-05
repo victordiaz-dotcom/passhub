@@ -1,8 +1,15 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { APP_VERSION } from "@/lib/version";
 
 export function Layout({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <AppHeader />

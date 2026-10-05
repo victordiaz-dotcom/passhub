@@ -13,7 +13,11 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { COUNTRY_FLAGS, COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
+import { COUNTRY_LABELS, COUNTRY_ORDER } from "@/lib/countryFlags";
+import { CountryFlag } from "@/components/CountryFlag";
+import { Skeleton } from "@/components/Skeleton";
+import { DatePresetSelect } from "@/components/DatePresetSelect";
+import { datePresetRange, localDateToday, shiftLocalDate, type DatePreset } from "@/lib/datePresets";
 
 // rgb(var(--token)) en vez de un hex fijo: como son variables CSS vivas, el
 // grid/los ejes/el tooltip siguen el tema activo (claro/oscuro) solos, sin
@@ -86,18 +90,6 @@ function formatMonthLabel(key: string) {
   return `${MONTH_LABELS[m - 1]} ${y}`;
 }
 
-function todayLocal() {
-  const now = new Date();
-  const offset = now.getTimezoneOffset();
-  return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
-}
-
-function monthsAgoStart(months: number) {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - months, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
 // Mismo enfoque que localDayRangeUtc en Historial.tsx (calendario local
 // convertido a UTC para comparar contra timestamptz), pero para un rango de
 // fechas en vez de un solo día: el final es exclusivo, el día siguiente al
@@ -141,7 +133,7 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function LoadingState() {
-  return <div className="flex h-56 items-center justify-center text-sm text-ink-soft">Cargando...</div>;
+  return <Skeleton className="h-56 w-full" />;
 }
 
 function ErrorState({ message }: { message: string }) {
@@ -161,37 +153,7 @@ function ColorSwatch({ label, value, onChange }: { label: string; value: string;
   );
 }
 
-function DateRangeFilter({
-  fromDate,
-  toDate,
-  onFromChange,
-  onToChange,
-}: {
-  fromDate: string;
-  toDate: string;
-  onFromChange: (v: string) => void;
-  onToChange: (v: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1">
-      <input
-        type="date"
-        aria-label="Desde"
-        value={fromDate}
-        onChange={(e) => onFromChange(e.target.value)}
-        className="rounded border border-line bg-card px-1.5 py-1 text-xs text-ink focus:border-accent focus:outline-none"
-      />
-      <span className="text-xs text-ink-soft">–</span>
-      <input
-        type="date"
-        aria-label="Hasta"
-        value={toDate}
-        onChange={(e) => onToChange(e.target.value)}
-        className="rounded border border-line bg-card px-1.5 py-1 text-xs text-ink focus:border-accent focus:outline-none"
-      />
-    </div>
-  );
-}
+type ChartPeriod = { fromDate: string; toDate: string; allTime: boolean };
 
 function LimitSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
@@ -239,13 +201,14 @@ function MonthlyEntriesChart({
   color,
   onColorChange,
   country,
+  period,
 }: {
   color: string;
   onColorChange: (v: string) => void;
   country: string;
+  period: ChartPeriod;
 }) {
-  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
-  const [toDate, setToDate] = useState(todayLocal());
+  const { fromDate, toDate } = period;
   const [data, setData] = useState<MonthlyPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -266,13 +229,14 @@ function MonthlyEntriesChart({
           return;
         }
         const map = new Map((rows ?? []).map((row) => [row.month_start.slice(0, 7), row.visits_count]));
-        setData(monthSpine(fromDate, toDate).map((key) => ({ month: formatMonthLabel(key), visits: map.get(key) ?? 0 })));
+        const months = period.allTime ? [...map.keys()].sort() : monthSpine(fromDate, toDate);
+        setData(months.map((key) => ({ month: formatMonthLabel(key), visits: map.get(key) ?? 0 })));
         setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [fromDate, toDate, country]);
+  }, [fromDate, toDate, period.allTime, country]);
 
   return (
     <ChartCard
@@ -280,7 +244,6 @@ function MonthlyEntriesChart({
       controls={
         <>
           <ColorSwatch label="Color de esta gráfica" value={color} onChange={onColorChange} />
-          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
         </>
       }
     >
@@ -305,8 +268,9 @@ function MonthlyEntriesChart({
   );
 }
 
-function ComparisonCard({ country }: { country: string }) {
-  const [comparison, setComparison] = useState<{ current: number; previous: number } | null>(null);
+function ComparisonCard({ country, period }: { country: string; period: ChartPeriod }) {
+  const { fromDate, toDate, allTime } = period;
+  const [comparison, setComparison] = useState<{ current: number; previous: number | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -314,35 +278,40 @@ function ComparisonCard({ country }: { country: string }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const range = localRangeToUtc(monthsAgoStart(1), todayLocal());
-    supabase
-      .rpc("analytics_visits_by_month", { p_start: range.startIso, p_end: range.endIso, p_country: country || undefined })
-      .then(({ data: rows, error: err }) => {
+    const range = localRangeToUtc(fromDate, toDate);
+    const dayCount = Math.round((Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000) + 1;
+    const previousRange = allTime ? null : localRangeToUtc(shiftLocalDate(fromDate, -dayCount), shiftLocalDate(fromDate, -1));
+    const currentRequest = supabase.rpc("analytics_visits_by_month", { p_start: range.startIso, p_end: range.endIso, p_country: country || undefined });
+    const previousRequest = previousRange
+      ? supabase.rpc("analytics_visits_by_month", { p_start: previousRange.startIso, p_end: previousRange.endIso, p_country: country || undefined })
+      : Promise.resolve(null);
+    Promise.all([currentRequest, previousRequest])
+      .then(([current, previous]) => {
         if (cancelled) return;
-        if (err) {
-          console.error(err);
+        if (current.error || previous?.error) {
+          console.error(current.error ?? previous?.error);
           setError("No se pudo cargar.");
           setLoading(false);
           return;
         }
-        const currentMonthKey = todayLocal().slice(0, 7);
-        const prevMonthKey = monthsAgoStart(1).slice(0, 7);
-        const map = new Map((rows ?? []).map((row) => [row.month_start.slice(0, 7), row.visits_count]));
-        setComparison({ current: map.get(currentMonthKey) ?? 0, previous: map.get(prevMonthKey) ?? 0 });
+        setComparison({
+          current: (current.data ?? []).reduce((sum, row) => sum + row.visits_count, 0),
+          previous: previous ? (previous.data ?? []).reduce((sum, row) => sum + row.visits_count, 0) : null,
+        });
         setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [country]);
+  }, [fromDate, toDate, allTime, country]);
 
   const variation =
-    comparison && comparison.previous > 0
+    comparison && comparison.previous !== null && comparison.previous > 0
       ? ((comparison.current - comparison.previous) / comparison.previous) * 100
       : null;
 
   return (
-    <ChartCard title="Mes actual frente al mes anterior">
+    <ChartCard title={allTime ? "Entradas en todo el historial" : "Periodo actual frente al anterior"}>
       {loading ? (
         <LoadingState />
       ) : error ? (
@@ -350,8 +319,8 @@ function ComparisonCard({ country }: { country: string }) {
       ) : comparison ? (
         <div className="flex h-[220px] flex-col items-center justify-center gap-3">
           <p className="font-display text-4xl font-bold text-ink">{comparison.current}</p>
-          <p className="text-sm text-ink-soft">entradas este mes · {comparison.previous} el mes pasado</p>
-          {variation !== null ? (
+          <p className="text-sm text-ink-soft">{allTime ? "entradas registradas" : `entradas en el periodo · ${comparison.previous} en el periodo anterior`}</p>
+          {!allTime && (variation !== null ? (
             <span
               className={`rounded-full px-3 py-1 text-sm font-medium ${
                 variation >= 0 ? "bg-accent-tint text-accent-dark" : "bg-danger/10 text-danger"
@@ -362,9 +331,9 @@ function ComparisonCard({ country }: { country: string }) {
             </span>
           ) : (
             <span className="rounded-full bg-line px-3 py-1 text-sm font-medium text-ink-soft">
-              Sin datos del mes anterior para comparar
+              Sin datos del periodo anterior para comparar
             </span>
-          )}
+          ))}
         </div>
       ) : (
         <EmptyState message="Sin datos para este periodo." />
@@ -377,13 +346,14 @@ function TopCompaniesChart({
   color,
   onColorChange,
   country,
+  period,
 }: {
   color: string;
   onColorChange: (v: string) => void;
   country: string;
+  period: ChartPeriod;
 }) {
-  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
-  const [toDate, setToDate] = useState(todayLocal());
+  const { fromDate, toDate } = period;
   const [limit, setLimit] = useState(10);
   const [data, setData] = useState<NamedCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -419,7 +389,6 @@ function TopCompaniesChart({
         <>
           <ColorSwatch label="Color de esta gráfica" value={color} onChange={onColorChange} />
           <LimitSelect value={limit} onChange={setLimit} />
-          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
         </>
       }
     >
@@ -448,13 +417,14 @@ function TopHostsChart({
   color,
   onColorChange,
   country,
+  period,
 }: {
   color: string;
   onColorChange: (v: string) => void;
   country: string;
+  period: ChartPeriod;
 }) {
-  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
-  const [toDate, setToDate] = useState(todayLocal());
+  const { fromDate, toDate } = period;
   const [limit, setLimit] = useState(10);
   const [data, setData] = useState<NamedCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -490,7 +460,6 @@ function TopHostsChart({
         <>
           <ColorSwatch label="Color de esta gráfica" value={color} onChange={onColorChange} />
           <LimitSelect value={limit} onChange={setLimit} />
-          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
         </>
       }
     >
@@ -519,13 +488,14 @@ function TopVisitorsChart({
   color,
   onColorChange,
   country,
+  period,
 }: {
   color: string;
   onColorChange: (v: string) => void;
   country: string;
+  period: ChartPeriod;
 }) {
-  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
-  const [toDate, setToDate] = useState(todayLocal());
+  const { fromDate, toDate } = period;
   const [limit, setLimit] = useState(10);
   const [data, setData] = useState<NamedCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -562,7 +532,6 @@ function TopVisitorsChart({
         <>
           <ColorSwatch label="Color de esta gráfica" value={color} onChange={onColorChange} />
           <LimitSelect value={limit} onChange={setLimit} />
-          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
         </>
       }
     >
@@ -591,13 +560,14 @@ function PreregStatusChart({
   colors,
   onColorChange,
   country,
+  period,
 }: {
   colors: ChartColors;
   onColorChange: (key: keyof ChartColors, value: string) => void;
   country: string;
+  period: ChartPeriod;
 }) {
-  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
-  const [toDate, setToDate] = useState(todayLocal());
+  const { fromDate, toDate } = period;
   const [data, setData] = useState<StatusCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -654,7 +624,6 @@ function PreregStatusChart({
               />
             ))}
           </div>
-          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
         </>
       }
     >
@@ -687,13 +656,14 @@ function WeekdayChart({
   color,
   onColorChange,
   country,
+  period,
 }: {
   color: string;
   onColorChange: (v: string) => void;
   country: string;
+  period: ChartPeriod;
 }) {
-  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
-  const [toDate, setToDate] = useState(todayLocal());
+  const { fromDate, toDate } = period;
   const [data, setData] = useState<WeekdayPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -728,7 +698,6 @@ function WeekdayChart({
       controls={
         <>
           <ColorSwatch label="Color de esta gráfica" value={color} onChange={onColorChange} />
-          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
         </>
       }
     >
@@ -757,13 +726,14 @@ function HourChart({
   color,
   onColorChange,
   country,
+  period,
 }: {
   color: string;
   onColorChange: (v: string) => void;
   country: string;
+  period: ChartPeriod;
 }) {
-  const [fromDate, setFromDate] = useState(monthsAgoStart(5));
-  const [toDate, setToDate] = useState(todayLocal());
+  const { fromDate, toDate } = period;
   const [data, setData] = useState<HourPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -798,7 +768,6 @@ function HourChart({
       controls={
         <>
           <ColorSwatch label="Color de esta gráfica" value={color} onChange={onColorChange} />
-          <DateRangeFilter fromDate={fromDate} toDate={toDate} onFromChange={setFromDate} onToChange={setToDate} />
         </>
       }
     >
@@ -828,6 +797,15 @@ export function AnalyticsSection() {
   const userId = session?.user.id;
   const [chartColors, setChartColors] = useState<ChartColors>(DEFAULT_CHART_COLORS);
   const [country, setCountry] = useState("");
+  const [datePreset, setDatePreset] = useState<DatePreset>("today");
+  const [customFrom, setCustomFrom] = useState(localDateToday());
+  const [customTo, setCustomTo] = useState(localDateToday());
+  const selectedRange = datePresetRange(datePreset, customFrom, customTo);
+  const period: ChartPeriod = {
+    fromDate: selectedRange.from ?? "1970-01-01",
+    toDate: selectedRange.to ?? localDateToday(),
+    allTime: datePreset === "all",
+  };
 
   useEffect(() => {
     // Limpieza de la versión vieja (localStorage, por navegador) — ya no se
@@ -885,14 +863,16 @@ export function AnalyticsSection() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-ink-soft">
-          Cada gráfica tiene su propio color y su propio rango de fechas — cámbialos directamente en la
-          gráfica que quieras ajustar.
-        </p>
+        <p className="text-xs text-ink-soft">El periodo y el país se aplican a todas las gráficas. Cada gráfica conserva su color.</p>
         <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+            Periodo
+            <DatePresetSelect value={datePreset} onChange={setDatePreset} className="input-field h-auto w-auto min-w-40 py-1 text-xs" />
+          </label>
           {isSuperadmin && (
             <label className="flex items-center gap-1.5 text-xs text-ink-soft">
               País
+              <CountryFlag code={country} className="h-3 w-[18px]" />
               <select
                 aria-label="Filtrar analíticas por país"
                 value={country}
@@ -902,7 +882,7 @@ export function AnalyticsSection() {
                 <option value="">Todos</option>
                 {COUNTRY_ORDER.map((code) => (
                   <option key={code} value={code}>
-                    {COUNTRY_FLAGS[code] ?? ""} {COUNTRY_LABELS[code] ?? code}
+                    {COUNTRY_LABELS[code] ?? code}
                   </option>
                 ))}
               </select>
@@ -917,34 +897,48 @@ export function AnalyticsSection() {
           </button>
         </div>
       </div>
+      {datePreset === "custom" && (
+        <div className="mb-4 flex flex-wrap gap-3">
+          <label className="text-xs text-ink-soft">Desde
+            <input type="date" value={customFrom} max={customTo || undefined} onChange={(event) => setCustomFrom(event.target.value)} className="input-field mt-1 h-auto w-full py-1 text-xs" />
+          </label>
+          <label className="text-xs text-ink-soft">Hasta
+            <input type="date" value={customTo} min={customFrom || undefined} onChange={(event) => setCustomTo(event.target.value)} className="input-field mt-1 h-auto w-full py-1 text-xs" />
+          </label>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <MonthlyEntriesChart
           color={chartColors.entradasPorMes}
           onColorChange={(v) => updateColor("entradasPorMes", v)}
           country={country}
+          period={period}
         />
-        <ComparisonCard country={country} />
+        <ComparisonCard country={country} period={period} />
         <TopCompaniesChart
           color={chartColors.topEmpresas}
           onColorChange={(v) => updateColor("topEmpresas", v)}
           country={country}
+          period={period}
         />
         <TopHostsChart
           color={chartColors.topAnfitriones}
           onColorChange={(v) => updateColor("topAnfitriones", v)}
           country={country}
+          period={period}
         />
         {isSuperadmin && (
           <TopVisitorsChart
             color={chartColors.topVisitantes}
             onColorChange={(v) => updateColor("topVisitantes", v)}
             country={country}
+            period={period}
           />
         )}
-        <PreregStatusChart colors={chartColors} onColorChange={updateColor} country={country} />
-        <WeekdayChart color={chartColors.porDiaSemana} onColorChange={(v) => updateColor("porDiaSemana", v)} country={country} />
-        <HourChart color={chartColors.porHora} onColorChange={(v) => updateColor("porHora", v)} country={country} />
+        <PreregStatusChart colors={chartColors} onColorChange={updateColor} country={country} period={period} />
+        <WeekdayChart color={chartColors.porDiaSemana} onColorChange={(v) => updateColor("porDiaSemana", v)} country={country} period={period} />
+        <HourChart color={chartColors.porHora} onColorChange={(v) => updateColor("porHora", v)} country={country} period={period} />
       </div>
     </div>
   );
